@@ -144,7 +144,7 @@ export default function LoginPage() {
 
             <div className="container" style={{ zIndex: 1 }}>
                 <div className="row justify-content-center align-items-center authentication authentication-basic h-100">
-                    <div className="col-xxl-4 col-xl-5 col-lg-6 col-md-6 col-sm-8 col-12">
+                    <div className="col-xxl-6 col-xl-7 col-lg-8 col-md-10 col-sm-11 col-12">
                         <div className="card custom-card my-4">
                             <div className="card-body p-5">
                                 <div className="d-flex justify-content-center mb-4">
