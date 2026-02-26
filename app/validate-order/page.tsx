@@ -4,25 +4,43 @@ import React, { useState } from 'react';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import Footer from '@/components/layout/Footer';
-
-// Interfaces
-interface ScannedData {
-    pickupId: string;
-    orderId: string;
-    driverId: string;
-    signature: string;
-}
+import { api } from '@/lib/api-client';
 
 export default function ValidateOrderOrQrPage() {
     const [isScanning, setIsScanning] = useState(false);
-    const [scannedData, setScannedData] = useState<ScannedData | null>(null);
+    const [manualCode, setManualCode] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [scannedData, setScannedData] = useState<Record<string, unknown> | null>(null);
 
     const toggleScanner = () => {
         setIsScanning(!isScanning);
+        // In a real implementation, this would start the camera.
+        // For now, we'll just toggle the UI state.
+    };
+
+    const handleManualSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!manualCode.trim()) return;
+
+        setLoading(true);
+        setError(null);
+        setScannedData(null);
+
+        try {
+            const data = await api.scanQrCodePickup({ qr_code: manualCode });
+            setScannedData(data as Record<string, unknown>);
+        } catch (err: unknown) {
+            console.error("Validation error:", err);
+            const errorMessage = err instanceof Error ? err.message : "Code invalide ou erreur serveur.";
+            setError(errorMessage);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <>
+        <div className="page">
             <style jsx>{`
                 @keyframes scanline {
                     0%, 100% {
@@ -49,7 +67,7 @@ export default function ValidateOrderOrQrPage() {
             <Sidebar />
 
             <div className="main-content app-content">
-                <div className="container-fluid">
+                <div className="container-fluid page-container main-body-container">
                     {/* Page Header */}
                     <div className="d-md-flex d-block align-items-center justify-content-between my-4 page-header-breadcrumb">
                         <div>
@@ -148,40 +166,44 @@ export default function ValidateOrderOrQrPage() {
                                             <i className={`${isScanning ? 'ri-stop-circle-line' : 'ri-qr-scan-2-line'} me-2`}></i>
                                             {isScanning ? 'Arrêter' : 'Scanner'}
                                         </button>
-                                        <button className="btn btn-outline-secondary btn-lg">
-                                            <i className="ri-image-add-line me-1"></i>Photo
-                                        </button>
                                     </div>
+                                </div>
+                                
+                                {/* Manual Input */}
+                                <div className="card-footer bg-light">
+                                    <form onSubmit={handleManualSubmit} className="row g-3 align-items-center justify-content-center">
+                                        <div className="col-auto">
+                                            <label htmlFor="manualCode" className="col-form-label">Saisie Manuelle:</label>
+                                        </div>
+                                        <div className="col-auto">
+                                            <input 
+                                                type="text" 
+                                                id="manualCode" 
+                                                className="form-control" 
+                                                placeholder="Entrer le code..." 
+                                                value={manualCode}
+                                                onChange={(e) => setManualCode(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="col-auto">
+                                            <button type="submit" className="btn btn-secondary" disabled={loading || !manualCode}>
+                                                {loading ? 'Validation...' : 'Valider'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                    {error && <div className="text-danger text-center mt-2">{error}</div>}
                                 </div>
                             </div>
 
-                            {/* Scanned Data Display (Mockup) */}
+                            {/* Scanned Data Display */}
                             {scannedData && (
-                                <div id="scanned-data-card" className="card custom-card mt-4">
-                                    <div className="card-header bg-info text-white">
-                                        <div className="card-title text-white">Données Scannées</div>
+                                <div id="scanned-data-card" className="card custom-card mt-4 border-success">
+                                    <div className="card-header bg-success text-white">
+                                        <div className="card-title text-white">Données Récupérées</div>
                                     </div>
                                     <div className="card-body">
-                                        <div className="row mb-3">
-                                            <div className="col-md-6 text-truncate">
-                                                <label className="form-label small text-muted">ID Retrait</label>
-                                                <div className="fw-semibold text-monospace">PICKUP-789-XYZ</div>
-                                            </div>
-                                            <div className="col-md-6 text-truncate">
-                                                <label className="form-label small text-muted">ID Commande Officine</label>
-                                                <div className="fw-semibold text-monospace">ORD-456-ABC</div>
-                                            </div>
-                                        </div>
-                                        <div className="row">
-                                            <div className="col-md-6 text-truncate">
-                                                <label className="form-label small text-muted">ID Livreur</label>
-                                                <div className="fw-semibold text-monospace">DRV-123-JKL</div>
-                                            </div>
-                                            <div className="col-md-6 text-truncate">
-                                                <label className="form-label small text-muted">Signature</label>
-                                                <div className="fw-semibold text-truncate text-monospace small">sha256:dca9fa2817144beda28d...</div>
-                                            </div>
-                                        </div>
+                                        {/* Display result dynamically as we don't know the exact structure yet */}
+                                        <pre>{JSON.stringify(scannedData, null, 2)}</pre> 
                                     </div>
                                 </div>
                             )}
@@ -217,16 +239,16 @@ export default function ValidateOrderOrQrPage() {
                                 </div>
                                 <div className="card-body small">
                                     <ol className="ps-3 mb-0">
-                                        <li className="mb-2">Cliquez sur le bouton <strong>Scanner</strong></li>
-                                        <li className="mb-2">Autorisez l accès à la caméra si demandé</li>
-                                        <li className="mb-2">Présentez le QR code face à la caméra</li>
-                                        <li className="mb-2">Le scan se fait automatiquement</li>
-                                        <li>Confirmez la validation</li>
+                                        <li className="mb-2">Cliquez sur le bouton <strong>Scanner</strong> ou saisissez le code manuellement.</li>
+                                        <li className="mb-2">Autorisez l accès à la caméra si demandé.</li>
+                                        <li className="mb-2">Présentez le QR code face à la caméra.</li>
+                                        <li className="mb-2">Le scan se fait automatiquement.</li>
+                                        <li>Confirmez la validation.</li>
                                     </ol>
                                 </div>
                             </div>
 
-                            {/* Recent Validations */}
+                            {/* Recent Validations (Static for now) */}
                             <div className="card custom-card mt-3">
                                 <div className="card-header border-bottom-0">
                                     <div className="card-title">Dernières Validations</div>
@@ -245,18 +267,6 @@ export default function ValidateOrderOrQrPage() {
                                                 </div>
                                             </div>
                                         </li>
-                                        <li className="list-group-item">
-                                            <div className="d-flex align-items-center gap-2">
-                                                <div className="flex-fill">
-                                                    <div className="fw-semibold small">CMD #8795</div>
-                                                    <div className="text-muted fs-11">Livreur: Marie Claire</div>
-                                                </div>
-                                                <div className="text-end">
-                                                    <div className="badge bg-success-transparent">Validé</div>
-                                                    <div className="fs-10 text-muted">Il y a 15m</div>
-                                                </div>
-                                            </div>
-                                        </li>
                                     </ul>
                                 </div>
                             </div>
@@ -265,7 +275,7 @@ export default function ValidateOrderOrQrPage() {
                 </div>
             </div>
 
-            {/* History Modal */}
+            {/* History Modal - kept static for now */}
             <div className="modal fade" id="historyModal" tabIndex={-1}>
                 <div className="modal-dialog modal-lg">
                     <div className="modal-content">
@@ -293,12 +303,6 @@ export default function ValidateOrderOrQrPage() {
                                             <td>05 Feb 2026, 09:15</td>
                                             <td><span className="badge bg-success">Success</span></td>
                                         </tr>
-                                        <tr>
-                                            <td><span className="fw-semibold">#CMD-8998</span></td>
-                                            <td>Moussa SOW</td>
-                                            <td>05 Feb 2026, 08:30</td>
-                                            <td><span className="badge bg-success">Success</span></td>
-                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -308,6 +312,6 @@ export default function ValidateOrderOrQrPage() {
             </div>
 
             <Footer />
-        </>
+        </div>
     );
 }

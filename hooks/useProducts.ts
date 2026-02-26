@@ -1,40 +1,8 @@
-'use client';
-
 import { useState, useEffect } from 'react';
+import { api } from '@/lib/api-client';
+import { Product, ProductCreatePayload } from '@/lib/types';
 
-/**
- * Interface pour les données d'un produit
- */
-export interface Product {
-  id: string;
-  productId: string;
-  name: string;
-  galenic: string;
-  unit?: string;
-  expirationDate?: string;
-  price?: number;
-  salePrice?: number;
-  purchasePrice?: number;
-  currency: string;
-  stock: number;
-  category?: string;
-  description?: string;
-}
-
-/**
- * Interface pour les données nécessaires à l'ajout d'un produit
- */
-export interface AddProductData {
-  name: string;
-  galenic: string;
-  unit: string;
-  expirationDate: string;
-  quantity: number;
-  purchasePrice: number;
-  salePrice: number;
-  currency: string;
-  stock: number;
-}
+export type AddProductData = ProductCreatePayload;
 
 export interface UseProductsReturn {
   products: Product[];
@@ -71,92 +39,80 @@ export function useProducts(): UseProductsReturn {
       setLoading(true);
       setError(null);
 
-      // TODO: Remplacer par votre appel API réel
-      // const response = await fetch('/api/products');
-      // if (!response.ok) throw new Error('Erreur lors du chargement des produits');
-      // const data = await response.json();
-
-      // Pour l'instant, on charge depuis localStorage ou données mockées
-      const storedProducts = localStorage.getItem('pharmacy_products');
+      // Get the pharmacy ID from localStorage
+      // The officine object is stored as JSON, we need to parse it and get the id
+      const officineData = localStorage.getItem('officine');
+      let pharmacyId: string | null = null;
       
-      if (storedProducts) {
-        setProducts(JSON.parse(storedProducts));
-      } else {
-        // Données mockées pour le développement
-        const mockProducts: Product[] = [
-          {
-            id: '1',
-            productId: 'PRD001',
-            name: 'Paracétamol 500mg',
-            galenic: 'Comprimé',
-            unit: 'Boîte',
-            price: 2500,
-            currency: 'FCFA',
-            stock: 150,
-            category: 'Antalgique',
-            description: 'Traitement de la douleur et de la fièvre',
-          },
-          {
-            id: '2',
-            productId: 'PRD002',
-            name: 'Ibuprofène 400mg',
-            galenic: 'Gélule',
-            unit: 'Plaquette',
-            price: 3500,
-            currency: 'FCFA',
-            stock: 80,
-            category: 'Anti-inflammatoire',
-            description: 'Anti-inflammatoire non stéroïdien',
-          },
-          {
-            id: '3',
-            productId: 'PRD003',
-            name: 'Amoxicilline 500mg',
-            galenic: 'Comprimé',
-            unit: 'Boîte',
-            price: 5000,
-            currency: 'FCFA',
-            stock: 120,
-            category: 'Antibiotique',
-            description: 'Antibiotique à large spectre',
-          },
-          {
-            id: '4',
-            productId: 'PRD004',
-            name: 'Sirop Codéine',
-            galenic: 'Sirop',
-            unit: 'Flacon',
-            price: 4500,
-            currency: 'FCFA',
-            stock: 45,
-            category: 'Antitussif',
-          },
-          {
-            id: '5',
-            productId: 'PRD005',
-            name: 'Diclofénac Gel',
-            galenic: 'Pommade',
-            unit: 'Tube',
-            price: 3000,
-            currency: 'FCFA',
-            stock: 60,
-            category: 'Anti-inflammatoire',
-          },
-          {
-            id: '6',
-            productId: 'PRD006',
-            name: 'Ventoline 100µg',
-            galenic: 'Aérosol',
-            unit: 'Flacon',
-            price: 6500,
-            currency: 'FCFA',
-            stock: 30,
-            category: 'Asthme',
-          }
-        ];
-        setProducts(mockProducts);
-        localStorage.setItem('pharmacy_products', JSON.stringify(mockProducts));
+      if (officineData) {
+        try {
+          const officine = JSON.parse(officineData);
+          pharmacyId = officine.id || officine.officine_id;
+        } catch (e) {
+          console.error('Error parsing officine data:', e);
+        }
       }
+      
+      if (!pharmacyId) {
+        setError('ID de pharmacie non trouvé. Veuillez vous reconnecter.');
+        setLoading(false);
+        return;
+      }
+
+      // Use pharmacy-specific endpoint instead of global products
+      const response = await api.getProducts(pharmacyId);
+      
+      // The API returns pharmacy-product associations with nested product data:
+      // { id, product: { id, name, dci, galenic }, sale_price, currency }
+      // We need to flatten this into our Product interface
+      let rawList: unknown[] = [];
+      if (Array.isArray(response)) {
+        rawList = response;
+      } else if (response && typeof response === 'object' && 'results' in response && Array.isArray((response as { results: unknown[] }).results)) {
+        rawList = (response as { results: unknown[] }).results;
+      } else if (response && typeof response === 'object' && 'data' in response && Array.isArray((response as { data: unknown[] }).data)) {
+        rawList = (response as { data: unknown[] }).data;
+      }
+
+      // DEBUG: Show ALL keys and values to find lot ID
+      /* if (rawList.length > 0) {
+        const first = rawList[0] as Record<string, unknown>;
+        const allKeys = Object.keys(first);
+        let debugInfo = 'TOUTES LES CLÉS: ' + allKeys.join(', ') + '\n\n';
+        for (const key of allKeys) {
+          const val = first[key];
+          debugInfo += key + ': ' + JSON.stringify(val) + '\n';
+        }
+        // alert(debugInfo); // Commented out to stop popup
+      } */
+
+      // Transform nested structure to flat Product objects
+      const productList: Product[] = rawList.map((item: unknown) => {
+        const entry = item as Record<string, unknown>;
+        const nestedProduct = entry.product as Record<string, unknown> | undefined;
+        
+        return {
+          id: (entry.id as string) || '',
+          name: (nestedProduct?.name as string) || '',
+          dci: (nestedProduct?.dci as string) || '',
+          dosage: (nestedProduct?.dosage as string) || '',
+          category: (nestedProduct?.category as string) || '',
+          galenic: (nestedProduct?.galenic as string) || '',
+          unit_base: (nestedProduct?.unit_base as string) || '',
+          unit_sale: (nestedProduct?.unit_sale as string) || '',
+          unit_purchase: (nestedProduct?.unit_purchase as string) || '',
+          galenic_detail: nestedProduct?.galenic 
+            ? { id: '', name: nestedProduct.galenic as string } 
+            : undefined,
+          category_detail: nestedProduct?.category_detail as Product['category_detail'],
+          unit_base_detail: nestedProduct?.unit_base_detail as Product['unit_base_detail'],
+          sale_price: entry.sale_price ? parseFloat(entry.sale_price as string) : undefined,
+          currency: (entry.currency as string) || 'XAF',
+        } as Product;
+      });
+
+      setProducts(productList);
+
     } catch (err: unknown) {
       const error = err as Error;
       console.error('Erreur lors du chargement des produits:', error);
@@ -168,34 +124,19 @@ export function useProducts(): UseProductsReturn {
 
   /**
    * Ajouter un nouveau produit
-   * @param {AddProductData} productData - Données du produit à ajouter
+   * @param {AddProductData} productData - Données du produit à ajouter (doit inclure officine)
    */
   const addProduct = async (productData: AddProductData) => {
     try {
       setLoading(true);
       setError(null);
 
-      // TODO: Remplacer par votre appel API réel
-      // const response = await fetch('/api/products', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(productData),
-      // });
-      // if (!response.ok) throw new Error('Erreur lors de l\'ajout du produit');
-      // const newProduct = await response.json();
+      await api.addProduct(productData);
+      
+      // For now, reload to get fresh list with IDs
+      await loadProducts();
 
-      // Pour l'instant, on ajoute en local
-      const newProduct: Product = {
-        ...productData,
-        id: Date.now().toString(),
-        productId: `PRD${String(products.length + 1).padStart(3, '0')}`,
-      };
-
-      const updatedProducts = [...products, newProduct];
-      setProducts(updatedProducts);
-      localStorage.setItem('pharmacy_products', JSON.stringify(updatedProducts));
-
-      return { success: true, product: newProduct };
+      return { success: true };
     } catch (err: unknown) {
       const error = err as Error;
       console.error('Erreur lors de l\'ajout du produit:', error);
@@ -216,22 +157,15 @@ export function useProducts(): UseProductsReturn {
       setLoading(true);
       setError(null);
 
-      // TODO: Remplacer par votre appel API réel
-      // const response = await fetch(`/api/products/${productId}`, {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(updates),
-      // });
-      // if (!response.ok) throw new Error('Erreur lors de la modification du produit');
-      // const updatedProduct = await response.json();
-
-      // Pour l'instant, on modifie en local
-      const updatedProducts = products.map(product =>
-        product.id === productId ? { ...product, ...updates } : product
-      );
-
-      setProducts(updatedProducts);
-      localStorage.setItem('pharmacy_products', JSON.stringify(updatedProducts));
+      // Cast updates to match ProductData partial if necessary
+      const payload: Record<string, unknown> = { ...updates };
+      delete payload.id;
+      delete payload.productId;
+      
+      // Type assertion to Unknown then Partial<ProductData> to satisfy the method signature
+      await api.updateProductPrice(productId, payload);
+      
+      await loadProducts();
 
       return { success: true };
     } catch (err: unknown) {
@@ -253,16 +187,10 @@ export function useProducts(): UseProductsReturn {
       setLoading(true);
       setError(null);
 
-      // TODO: Remplacer par votre appel API réel
-      // const response = await fetch(`/api/products/${productId}`, {
-      //   method: 'DELETE',
-      // });
-      // if (!response.ok) throw new Error('Erreur lors de la suppression du produit');
-
-      // Pour l'instant, on supprime en local
-      const updatedProducts = products.filter(product => product.id !== productId);
-      setProducts(updatedProducts);
-      localStorage.setItem('pharmacy_products', JSON.stringify(updatedProducts));
+      await api.deleteProductPrice(productId);
+      
+      // Update local state
+      setProducts(prev => prev.filter(p => p.id !== productId));
 
       return { success: true };
     } catch (err: unknown) {
@@ -285,8 +213,9 @@ export function useProducts(): UseProductsReturn {
     const lowerQuery = query.toLowerCase();
     return products.filter(product =>
       product.name.toLowerCase().includes(lowerQuery) ||
-      product.productId.toLowerCase().includes(lowerQuery) ||
-      (product.category && product.category.toLowerCase().includes(lowerQuery))
+      product.id.toLowerCase().includes(lowerQuery) ||
+      (product.dci && product.dci.toLowerCase().includes(lowerQuery)) ||
+      (product.category_detail?.name && product.category_detail.name.toLowerCase().includes(lowerQuery))
     );
   };
 
@@ -296,7 +225,7 @@ export function useProducts(): UseProductsReturn {
    */
   const filterByCategory = (category: string) => {
     if (!category) return products;
-    return products.filter(product => product.category === category);
+    return products.filter(product => product.category_detail?.name === category);
   };
 
   /**

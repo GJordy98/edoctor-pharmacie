@@ -4,6 +4,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 
+import { api } from '@/lib/api-client';
+
 export default function Header() {
   const [officineName, setOfficineName] = useState('');
   const [officineNumber, setOfficineNumber] = useState('');
@@ -21,10 +23,38 @@ export default function Header() {
     });
   }, []);
 
-  const handleLogout = () => {
-    // Logique de déconnexion
-    localStorage.clear();
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    api.logout();
     window.location.href = '/login';
+  };
+
+  const toggleSidebar = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const html = document.documentElement;
+    const currentToggled = html.getAttribute('data-toggled');
+    
+    // If currently open (or no state set, which means open by default), close it
+    if (currentToggled !== 'close') {
+      html.setAttribute('data-toggled', 'close');
+      // Remove overlay if present
+      const overlay = document.querySelector('.sidebar-overlay');
+      if (overlay) overlay.remove();
+    } else {
+      // If currently closed, open it
+      html.setAttribute('data-toggled', 'open');
+      // Add overlay for mobile to close sidebar when clicking outside
+      if (window.innerWidth < 992) {
+        const overlay = document.createElement('div');
+        overlay.className = 'sidebar-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99;transition:opacity 0.3s;';
+        overlay.addEventListener('click', () => {
+          html.setAttribute('data-toggled', 'close');
+          overlay.remove();
+        });
+        document.body.appendChild(overlay);
+      }
+    }
   };
 
   return (
@@ -45,10 +75,10 @@ export default function Header() {
 
           <div className="header-element mx-lg-0 mx-2">
             <a 
-              aria-label="Hide Sidebar"
+              aria-label="Toggle Sidebar"
               className="sidemenu-toggle header-link animated-arrow hor-toggle horizontal-navtoggle"
-              data-bs-toggle="sidebar" 
               href="#"
+              onClick={toggleSidebar}
             >
               <span></span>
             </a>
@@ -233,17 +263,7 @@ export default function Header() {
             </div>
           </li>
 
-          {/* Switcher */}
-          <li className="header-element">
-            <a href="#" className="header-link switcher-icon" data-bs-toggle="offcanvas" data-bs-target="#switcher-canvas">
-              <svg xmlns="http://www.w3.org/2000/svg" className="header-link-icon" viewBox="0 0 256 256">
-                <rect width="256" height="256" fill="none" />
-                <path d="M207.86,123.18l16.78-21a99.14,99.14,0,0,0-10.07-24.29l-26.7-3a81,81,0,0,0-6.81-6.81l-3-26.71a99.43,99.43,0,0,0-24.3-10l-21,16.77a81.59,81.59,0,0,0-9.64,0l-21-16.78A99.14,99.14,0,0,0,77.91,41.43l-3,26.7a81,81,0,0,0-6.81,6.81l-26.71,3a99.43,99.43,0,0,0-10,24.3l16.77,21a81.59,81.59,0,0,0,0,9.64l-16.78,21a99.14,99.14,0,0,0,10.07,24.29l26.7,3a81,81,0,0,0,6.81,6.81l3,26.71a99.43,99.43,0,0,0,24.3,10l21-16.77a81.59,81.59,0,0,0,9.64,0l21,16.78a99.14,99.14,0,0,0,24.29-10.07l3-26.7a81,81,0,0,0,6.81-6.81l26.71-3a99.43,99.43,0,0,0,10-24.3l-16.77-21A81.59,81.59,0,0,0,207.86,123.18ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z" opacity="0.2" />
-                <circle cx="128" cy="128" r="40" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-                <path d="M41.43,178.09A99.14,99.14,0,0,1,31.36,153.8l16.78-21a81.59,81.59,0,0,1,0-9.64l-16.77-21a99.43,99.43,0,0,1,10.05-24.3l26.71-3a81,81,0,0,1,6.81-6.81l3-26.7A99.14,99.14,0,0,1,102.2,31.36l21,16.78a81.59,81.59,0,0,1,9.64,0l21-16.77a99.43,99.43,0,0,1,24.3,10.05l3,26.71a81,81,0,0,1,6.81,6.81l26.7,3a99.14,99.14,0,0,1,10.07,24.29l-16.78,21a81.59,81.59,0,0,1,0,9.64l16.77,21a99.43,99.43,0,0,1-10,24.3l-26.71,3a81,81,0,0,1-6.81,6.81l-3,26.7a99.14,99.14,0,0,1-24.29,10.07l-21-16.78a81.59,81.59,0,0,1-9.64,0l-21,16.77a99.43,99.43,0,0,1-24.3-10l-3-26.71a81,81,0,0,1-6.81-6.81Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
-              </svg>
-            </a>
-          </li>
+
         </ul>
       </div>
     </header>

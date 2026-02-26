@@ -4,11 +4,14 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
+import { api } from '@/lib/api-client';
+
 export default function Sidebar() {
   const pathname = usePathname();
 
-  const handleLogout = () => {
-    localStorage.clear();
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    api.logout();
     window.location.href = '/login';
   };
 
@@ -87,7 +90,7 @@ export default function Sidebar() {
                                 <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200ZM176,88a48,48,0,0,1-96,0,8,8,0,0,1,16,0,32,32,0,0,0,64,0,8,8,0,0,1,16,0Z"></path>
                               </svg>
                               Pharmacie
-                              <span className="badge bg-primary-transparent ms-2">9</span>
+                              <span className="badge bg-primary-transparent ms-2">11</span>
                               <i className="ri-arrow-right-s-line side-menu__angle"></i>
                             </a>
                             <ul className="slide-menu child2" style={{ display: 'block' }}>
@@ -102,6 +105,11 @@ export default function Sidebar() {
                                 </Link>
                               </li>
                               <li className="slide">
+                                <Link href="/send-prescription" className={`side-menu__item ${isActive('/send-prescription')}`}>
+                                  Envoyer Ordonnance
+                                </Link>
+                              </li>
+                              <li className="slide">
                                 <Link href="/profile" className={`side-menu__item ${isActive('/profile')}`}>
                                   Paramètres pharmacie
                                 </Link>
@@ -109,6 +117,16 @@ export default function Sidebar() {
                               <li className="slide">
                                 <Link href="/validate-order" className={`side-menu__item ${isActive('/validate-order')}`}>
                                   Scanner une commande
+                                </Link>
+                              </li>
+                              <li className="slide">
+                                <Link href="/schedule" className={`side-menu__item ${isActive('/schedule')}`}>
+                                  Planning &amp; Horaires
+                                </Link>
+                              </li>
+                              <li className="slide">
+                                <Link href="/kyc" className={`side-menu__item ${isActive('/kyc')}`}>
+                                  Vérification KYC
                                 </Link>
                               </li>
                             </ul>

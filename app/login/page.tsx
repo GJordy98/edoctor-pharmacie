@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { api } from '@/lib/api-client';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -45,27 +46,37 @@ export default function LoginPage() {
         setIsSubmitting(true);
 
         try {
-            // PARAMÈTRES BACKEND (À configurer plus tard)
-            // const API_ENDPOINT = "TON_ENDPOINT_ICI/login/";
-            
-            console.log("Tentative de connexion avec:", formData);
+            const response = await api.login({
+                telephone: formData.telephone,
+                password: formData.password
+            });
 
-            // Simulation d'un appel API
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            if (response.access && response.refresh) {
+                api.setTokens(response.access, response.refresh);
+                
+                if (response.account) {
+                    localStorage.setItem('account', JSON.stringify(response.account));
+                }
+                if (response.officine) {
+                    localStorage.setItem('officine', JSON.stringify(response.officine));
+                }
+                
+                setMessage({ text: 'Connexion réussie ! Redirection...', type: 'success' });
+                
+                setTimeout(() => {
+                    router.push('/products_list');
+                }, 1000);
+            } else {
+                throw new Error('Réponse invalide du serveur');
+            }
 
-            // Succès simulé
-            setMessage({ text: 'Connexion réussie ! Redirection...', type: 'success' });
-            
-            // Stocker le token ou les infos utilisateur si nécessaire
-            // localStorage.setItem('token', 'fake-jwt-token');
-
-            setTimeout(() => {
-                router.push('/products_list');
-            }, 1000);
-
-        } catch (error) {
+        } catch (err: unknown) {
+            const error = err as Error & { message?: string };
             console.error("Erreur de connexion:", error);
-            setMessage({ text: "Identifiants invalides ou erreur serveur.", type: 'danger' });
+            setMessage({ 
+                text: error.message || "Identifiants invalides ou erreur serveur.", 
+                type: 'danger' 
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -203,6 +214,9 @@ export default function LoginPage() {
                                             >
                                                 <i className={showPassword ? "ri-eye-line" : "ri-eye-off-line"}></i>
                                             </span>
+                                        </div>
+                                        <div className="mt-2 text-end">
+                                            <Link href="/forgot-password" className="text-danger text-decoration-none">Mot de passe oublié ?</Link>
                                         </div>
 
                                         <div className="mt-2">

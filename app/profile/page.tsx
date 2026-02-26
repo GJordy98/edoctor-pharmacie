@@ -1,52 +1,62 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import Footer from '@/components/layout/Footer';
+import { api } from '@/lib/api-client';
+import { Pharmacy, Account } from '@/lib/types';
 
 export default function ProfileOfficinePage() {
     // États pour le mode édition par section
     const [editModes, setEditModes] = useState({
         officine: false,
         address: false,
-        account: false
+        account: false // Keeping account for now, might need separate logic
     });
 
-    // Données du profil (initialisées avec des valeurs par défaut ou venant de localStorage/API)
-    const [profileData, setProfileData] = useState({
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // Données du profil
+    const [profileData, setProfileData] = useState<{
+        officine: Pharmacy;
+        account: Account | null;
+        holder: unknown;
+    }>({
         officine: {
-            name: 'Pharmacie Renaissance',
-            description: 'Officine moderne offrant médicaments et conseils.',
-            telephone: '+237699887744',
-            createdAt: '2025-12-03',
-            status: 'Actif'
-        },
-        address: {
-            city: 'Douala',
-            quater: 'Bonamoussadi',
-            rue: 'Carrefour Agip',
-            bp: '2345',
-            longitude: '4.052321',
-            latitude: '9.701245',
-            telephone: '+237670112233'
+            id: '',
+            name: '',
+            description: '',
+            telephone: '',
+            status: '',
+            created_at: '',
+            adresse: {
+                city: '',
+                quater: '',
+                rue: '',
+                bp: '',
+                longitude: 0,
+                latitude: 0,
+                telephone: ''
+            }
         },
         account: {
-            lastName: 'pharmacie',
-            firstName: '2',
-            email: 'pharmacie2@gmail.com',
-            telephone: '+237612345678',
-            role: 'PHARMACIST',
-            status: 'Actif'
+            lastName: '',
+            firstName: '',
+            email: '',
+            telephone: '',
+            role: '',
+            status: ''
         },
         holder: {
-            name: 'Dr. Gedeon Hakoua',
-            email: 'gedeonhakoua1@gmail.com',
-            telephone: '+237699887766',
-            poste: 'Pharmacien Titulaire',
-            createdAt: '2025-12-03',
-            employeesCount: 1
+            name: '',
+            email: '',
+            telephone: '',
+            poste: '',
+            createdAt: '',
+            employeesCount: 0
         }
     });
 
@@ -56,6 +66,50 @@ export default function ProfileOfficinePage() {
         account: false
     });
 
+    // Chargement des données
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                // Récupérer l'ID de la pharmacie depuis le localStorage
+                const storedOfficine = localStorage.getItem('officine');
+                const storedAccount = localStorage.getItem('account');
+                
+                let officineId = '';
+                if (storedOfficine) {
+                    const parsed = JSON.parse(storedOfficine);
+                    officineId = parsed.id;
+                }
+
+                if (!officineId) {
+                    setError("Aucune pharmacie identifiée. Veuillez vous reconnecter.");
+                    setLoading(false);
+                    return;
+                }
+
+                const pharmacyData = await api.getPharmacy(officineId);
+                
+                // Préparer les données pour l'affichage
+                setProfileData(prev => ({
+                    ...prev,
+                    officine: pharmacyData,
+                    // Si le backend renvoie aussi les infos du titulaire/compte dans l'objet pharmacy, on les map ici.
+                    // Sinon on utilise ce qu'on a en local ou on laisse vide.
+                    // Pour l'instant on reprend les infos du compte local pour la partie "Compte"
+                    account: storedAccount ? JSON.parse(storedAccount) : prev.account
+                }));
+
+            } catch (err: unknown) {
+                console.error("Erreur chargement profil:", err);
+                const msg = err instanceof Error ? err.message : "Impossible de charger le profil.";
+                setError(msg);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProfile();
+    }, []);
+
     // Basculer le mode édition
     const toggleEditMode = (section: 'officine' | 'address' | 'account') => {
         setEditModes(prev => ({ ...prev, [section]: !prev[section] }));
@@ -63,33 +117,58 @@ export default function ProfileOfficinePage() {
 
     // Gérer les changements d'input
     const handleInputChange = (section: 'officine' | 'address' | 'account', field: string, value: string) => {
-        setProfileData(prev => ({
-            ...prev,
-            [section]: {
-                ...prev[section],
-                [field]: value
+        setProfileData(prev => {
+            if (section === 'officine') {
+                return { ...prev, officine: { ...prev.officine, [field]: value } };
             }
-        }));
+            if (section === 'address') {
+                 // Address is nested in officine in our type, but UI treats it as separate section
+                 return { 
+                     ...prev, 
+                     officine: { 
+                         ...prev.officine, 
+                         adresse: { ...prev.officine.adresse, [field]: value } 
+                     } 
+                 };
+            }
+            // Account updates might need separate API call or updateProfile
+            if (section === 'account') {
+                return { ...prev, account: { ...prev.account, [field]: value } };
+            }
+            return prev;
+        });
     };
 
-    // Sauvegarder les modifications (Simulé)
+    // Sauvegarder les modifications
     const saveSection = async (section: 'officine' | 'address' | 'account') => {
         setIsSaving(prev => ({ ...prev, [section]: true }));
         
         try {
-            console.log(`Sauvegarde de la section ${section}:`, profileData[section]);
-            
-            // Simulation d'appel API
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (section === 'officine' || section === 'address') {
+                await api.updatePharmacy(profileData.officine.id, profileData.officine);
+                // Mettre à jour le localStorage si nécessaire
+                localStorage.setItem('officine', JSON.stringify(profileData.officine));
+            } else if (section === 'account') {
+                if (profileData.account) {
+                    // Utiliser updateProfile pour le compte
+                    await api.updateProfile(profileData.account);
+                    localStorage.setItem('account', JSON.stringify(profileData.account));
+                }
+            }
             
             setEditModes(prev => ({ ...prev, [section]: false }));
-            // Optionnel: Afficher une notification de succès
-        } catch (error) {
-            console.error(`Erreur lors de la sauvegarde de ${section}:`, error);
+            alert('Modifications enregistrées !');
+        } catch (error: unknown) {
+            console.error(`Erreur sauvegarde ${section}:`, error);
+            const msg = error instanceof Error ? error.message : 'Echec de la sauvegarde';
+            alert(`Erreur: ${msg}`);
         } finally {
             setIsSaving(prev => ({ ...prev, [section]: false }));
         }
     };
+
+    if (loading) return <div className="p-5 text-center">Chargement du profil...</div>;
+    if (error) return <div className="p-5 text-center text-danger">Erreur: {error}</div>;
 
     return (
         <>
@@ -227,7 +306,7 @@ export default function ProfileOfficinePage() {
                                             <div className="d-flex flex-wrap gap-3 mt-3">
                                                 <span className="d-flex align-items-center">
                                                     <i className="ri-map-pin-line me-2"></i>
-                                                    <span>{profileData.address.city}, {profileData.address.quater}</span>
+                                                    <span>{profileData.officine.adresse?.city}, {profileData.officine.adresse?.quater}</span>
                                                 </span>
                                                 <span className="d-flex align-items-center">
                                                     <i className="ri-phone-line me-2"></i>
@@ -238,7 +317,7 @@ export default function ProfileOfficinePage() {
                                         <div className="col-md-3 text-md-end text-center mt-4 mt-md-0">
                                             <span className="status-badge">
                                                 <i className="ri-checkbox-circle-line me-1"></i>
-                                                <span>{profileData.officine.status}</span>
+                                                <span>{profileData.officine.status || 'Actif'}</span>
                                             </span>
                                         </div>
                                     </div>
@@ -286,7 +365,7 @@ export default function ProfileOfficinePage() {
                                             </div>
                                             <div className="col-md-6">
                                                 <div className="info-label">Date de création</div>
-                                                <div className="info-value">{profileData.officine.createdAt}</div>
+                                                <div className="info-value">{profileData.officine.created_at}</div>
                                             </div>
                                         </div>
                                     ) : (
@@ -297,11 +376,11 @@ export default function ProfileOfficinePage() {
                                             </div>
                                             <div className="col-12">
                                                 <label className="form-label">Téléphone</label>
-                                                <input type="text" className="form-control" value={profileData.officine.telephone} onChange={(e) => handleInputChange('officine', 'telephone', e.target.value)} />
+                                                <input type="text" className="form-control" value={profileData.officine.telephone || ''} onChange={(e) => handleInputChange('officine', 'telephone', e.target.value)} />
                                             </div>
                                             <div className="col-12">
                                                 <label className="form-label">Description</label>
-                                                <textarea className="form-control" rows={3} value={profileData.officine.description} onChange={(e) => handleInputChange('officine', 'description', e.target.value)}></textarea>
+                                                <textarea className="form-control" rows={3} value={profileData.officine.description || ''} onChange={(e) => handleInputChange('officine', 'description', e.target.value)}></textarea>
                                             </div>
                                         </div>
                                     )}
@@ -335,42 +414,42 @@ export default function ProfileOfficinePage() {
                                         <div className="row g-4">
                                             <div className="col-md-6">
                                                 <div className="info-label">Ville</div>
-                                                <div className="info-value">{profileData.address.city}</div>
+                                                <div className="info-value">{profileData.officine.adresse?.city}</div>
                                             </div>
                                             <div className="col-md-6">
                                                 <div className="info-label">Quartier</div>
-                                                <div className="info-value">{profileData.address.quater}</div>
+                                                <div className="info-value">{profileData.officine.adresse?.quater}</div>
                                             </div>
                                             <div className="col-md-6">
                                                 <div className="info-label">Rue</div>
-                                                <div className="info-value">{profileData.address.rue}</div>
+                                                <div className="info-value">{profileData.officine.adresse?.rue}</div>
                                             </div>
                                             <div className="col-md-6">
                                                 <div className="info-label">Boîte Postale</div>
-                                                <div className="info-value">{profileData.address.bp}</div>
+                                                <div className="info-value">{profileData.officine.adresse?.bp}</div>
                                             </div>
                                             <div className="col-md-6">
                                                 <div className="info-label">Coordonnées (Lon, Lat)</div>
-                                                <div className="info-value">{profileData.address.longitude}, {profileData.address.latitude}</div>
+                                                <div className="info-value">{profileData.officine.adresse?.longitude}, {profileData.officine.adresse?.latitude}</div>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="row gy-3">
                                             <div className="col-md-6">
                                                 <label className="form-label">Ville</label>
-                                                <input type="text" className="form-control" value={profileData.address.city} onChange={(e) => handleInputChange('address', 'city', e.target.value)} />
+                                                <input type="text" className="form-control" value={profileData.officine.adresse?.city || ''} onChange={(e) => handleInputChange('address', 'city', e.target.value)} />
                                             </div>
                                             <div className="col-md-6">
                                                 <label className="form-label">Quartier</label>
-                                                <input type="text" className="form-control" value={profileData.address.quater} onChange={(e) => handleInputChange('address', 'quater', e.target.value)} />
+                                                <input type="text" className="form-control" value={profileData.officine.adresse?.quater || ''} onChange={(e) => handleInputChange('address', 'quater', e.target.value)} />
                                             </div>
                                             <div className="col-md-6">
                                                 <label className="form-label">Rue</label>
-                                                <input type="text" className="form-control" value={profileData.address.rue} onChange={(e) => handleInputChange('address', 'rue', e.target.value)} />
+                                                <input type="text" className="form-control" value={profileData.officine.adresse?.rue || ''} onChange={(e) => handleInputChange('address', 'rue', e.target.value)} />
                                             </div>
                                             <div className="col-md-6">
                                                 <label className="form-label">BP</label>
-                                                <input type="text" className="form-control" value={profileData.address.bp} onChange={(e) => handleInputChange('address', 'bp', e.target.value)} />
+                                                <input type="text" className="form-control" value={profileData.officine.adresse?.bp || ''} onChange={(e) => handleInputChange('address', 'bp', e.target.value)} />
                                             </div>
                                         </div>
                                     )}
@@ -404,34 +483,34 @@ export default function ProfileOfficinePage() {
                                         <div className="row g-4">
                                             <div className="col-md-6">
                                                 <div className="info-label">Nom</div>
-                                                <div className="info-value">{profileData.account.lastName}</div>
+                                                <div className="info-value">{profileData.account?.last_name || profileData.account?.lastName}</div>
                                             </div>
                                             <div className="col-md-6">
                                                 <div className="info-label">Prénom</div>
-                                                <div className="info-value">{profileData.account.firstName}</div>
+                                                <div className="info-value">{profileData.account?.first_name || profileData.account?.firstName}</div>
                                             </div>
                                             <div className="col-md-6">
                                                 <div className="info-label">Email</div>
-                                                <div className="info-value">{profileData.account.email}</div>
+                                                <div className="info-value">{profileData.account?.email}</div>
                                             </div>
                                             <div className="col-md-6">
                                                 <div className="info-label">Téléphone</div>
-                                                <div className="info-value">{profileData.account.telephone}</div>
+                                                <div className="info-value">{profileData.account?.telephone}</div>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="row gy-3">
                                             <div className="col-md-6">
                                                 <label className="form-label">Nom</label>
-                                                <input type="text" className="form-control" value={profileData.account.lastName} onChange={(e) => handleInputChange('account', 'lastName', e.target.value)} />
+                                                <input type="text" className="form-control" value={profileData.account?.last_name || profileData.account?.lastName || ''} onChange={(e) => handleInputChange('account', 'last_name', e.target.value)} />
                                             </div>
                                             <div className="col-md-6">
                                                 <label className="form-label">Prénom</label>
-                                                <input type="text" className="form-control" value={profileData.account.firstName} onChange={(e) => handleInputChange('account', 'firstName', e.target.value)} />
+                                                <input type="text" className="form-control" value={profileData.account?.first_name || profileData.account?.firstName || ''} onChange={(e) => handleInputChange('account', 'first_name', e.target.value)} />
                                             </div>
                                             <div className="col-12">
                                                 <label className="form-label">Email</label>
-                                                <input type="email" className="form-control" value={profileData.account.email} onChange={(e) => handleInputChange('account', 'email', e.target.value)} />
+                                                <input type="email" className="form-control" value={profileData.account?.email || ''} onChange={(e) => handleInputChange('account', 'email', e.target.value)} />
                                             </div>
                                         </div>
                                     )}
@@ -439,37 +518,6 @@ export default function ProfileOfficinePage() {
                             </div>
                         </div>
 
-                        {/* Pharmacien Titulaire */}
-                        <div className="col-lg-6 mb-4">
-                            <div className="card info-card h-100">
-                                <div className="card-header bg-white border-bottom-0 p-3">
-                                    <h5 className="mb-0 fs-16 fw-semibold">
-                                        <i className="ri-nurse-line me-2 text-info"></i>
-                                        Pharmacien Titulaire
-                                    </h5>
-                                </div>
-                                <div className="card-body">
-                                    <div className="row g-4">
-                                        <div className="col-md-6">
-                                            <div className="info-label">Nom complet</div>
-                                            <div className="info-value">{profileData.holder.name}</div>
-                                        </div>
-                                        <div className="col-md-6">
-                                            <div className="info-label">Email</div>
-                                            <div className="info-value">{profileData.holder.email}</div>
-                                        </div>
-                                        <div className="col-md-6">
-                                            <div className="info-label">Téléphone</div>
-                                            <div className="info-value">{profileData.holder.telephone}</div>
-                                        </div>
-                                        <div className="col-md-6">
-                                            <div className="info-label">Poste</div>
-                                            <div className="info-value">{profileData.holder.poste}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

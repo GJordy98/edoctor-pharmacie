@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import Footer from '@/components/layout/Footer';
@@ -9,19 +11,43 @@ import { useProducts } from '@/hooks/useProducts';
 export default function ProductsPage() {
   const { products, loading, error, deleteProduct } = useProducts();
 
-  const handleDeleteProduct = async (productId: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
-      const result = await deleteProduct(productId);
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<{ text: string; type: 'success' | 'danger' } | null>(null);
+
+  const openDeleteModal = (productId: string, productName: string) => {
+    setProductToDelete({ id: productId, name: productName });
+    setShowDeleteModal(true);
+  };
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setProductToDelete(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return;
+    setDeleting(true);
+    try {
+      const result = await deleteProduct(productToDelete.id);
       if (result.success) {
-        alert('Produit supprimé avec succès !');
+        setDeleteMessage({ text: 'Produit supprimé avec succès !', type: 'success' });
       } else {
-        alert('Erreur lors de la suppression : ' + result.error);
+        setDeleteMessage({ text: 'Erreur: ' + result.error, type: 'danger' });
       }
+    } catch {
+      setDeleteMessage({ text: 'Erreur inattendue lors de la suppression.', type: 'danger' });
+    } finally {
+      setDeleting(false);
+      closeDeleteModal();
+      setTimeout(() => setDeleteMessage(null), 4000);
     }
   };
 
   return (
-    <>
+    <div className="page">
       <Header />
       <Sidebar />
       
@@ -50,6 +76,8 @@ export default function ProductsPage() {
             </div>
           )}
 
+
+
           {/* Statistics Cards */}
           <div className="row row-cols-xxl-5 row-cols-md-3 row-cols-1">
             <div className="col">
@@ -58,11 +86,11 @@ export default function ProductsPage() {
                   <div className="d-flex align-items-start gap-3 flex-wrap">
                     <div className="flex-fill">
                       <span className="fs-13 fw-medium">Total Products</span>
-                      <h4 className="fw-semibold my-2 lh-1">12,350</h4>
+                      <h4 className="fw-semibold my-2 lh-1">{products.length}</h4>
                       <div className="d-flex align-items-center justify-content-between">
                         <span className="d-block text-muted">
-                          <span className="fs-12 badge bg-success-transparent me-1">+15%</span>
-                          this month
+                          <span className="fs-12 badge bg-success-transparent me-1">✓</span>
+                          Total registered
                         </span>
                       </div>
                     </div>
@@ -85,11 +113,17 @@ export default function ProductsPage() {
                   <div className="d-flex align-items-start gap-3 flex-wrap">
                     <div className="flex-fill">
                       <span className="fs-13 fw-medium">Products in Stock</span>
-                      <h4 className="fw-semibold my-2 lh-1">7,890</h4>
+                      <h4 className="fw-semibold my-2 lh-1">
+                        {products.filter(p => (Number(p.stock) || 0) > 0).length}
+                      </h4>
                       <div className="d-flex align-items-center justify-content-between">
                         <span className="d-block text-muted">
-                          <span className="fs-12 badge bg-success-transparent me-1">+10%</span>
-                          this month
+                          <span className="fs-12 badge bg-success-transparent me-1">
+                            {products.length > 0 
+                              ? Math.round((products.filter(p => (Number(p.stock) || 0) > 0).length / products.length) * 100)
+                              : 0}%
+                          </span>
+                          Available
                         </span>
                       </div>
                     </div>
@@ -111,12 +145,14 @@ export default function ProductsPage() {
                 <div className="card-body">
                   <div className="d-flex align-items-start gap-3 flex-wrap">
                     <div className="flex-fill">
-                      <span className="fs-13 fw-medium">Out of Stock Products</span>
-                      <h4 className="fw-semibold my-2 lh-1">2,430</h4>
+                      <span className="fs-13 fw-medium">Out of Stock</span>
+                      <h4 className="fw-semibold my-2 lh-1">
+                          {products.filter(p => (Number(p.stock) || 0) === 0).length}
+                      </h4>
                       <div className="d-flex align-items-center justify-content-between">
                         <span className="d-block text-muted">
-                          <span className="fs-12 badge bg-danger-transparent me-1">-8%</span>
-                          this month
+                          <span className="fs-12 badge bg-danger-transparent me-1">!</span>
+                          Needs restocking
                         </span>
                       </div>
                     </div>
@@ -134,24 +170,26 @@ export default function ProductsPage() {
             </div>
 
             <div className="col">
-              <div className="card custom-card dashboard-main-card secondary">
+              <div className="card custom-card dashboard-main-card danger">
                 <div className="card-body">
                   <div className="d-flex align-items-start gap-3 flex-wrap">
                     <div className="flex-fill">
-                      <span className="fs-13 fw-medium">Recently Added</span>
-                      <h4 className="fw-semibold my-2 lh-1">550</h4>
+                      <span className="fs-13 fw-medium">Low Stock Alert</span>
+                      <h4 className="fw-semibold my-2 lh-1">
+                        {products.filter(p => (Number(p.stock) || 0) > 0 && (Number(p.stock) || 0) <= 10).length}
+                      </h4>
                       <div className="d-flex align-items-center justify-content-between">
                         <span className="d-block text-muted">
-                          <span className="fs-12 badge bg-success-transparent me-1">+30%</span>
-                          this month
+                          <span className="fs-12 badge bg-danger-transparent me-1">⚠</span>
+                          Stock ≤ 10 units
                         </span>
                       </div>
                     </div>
                     <div>
-                      <span className="avatar avatar-md bg-secondary-transparent svg-secondary">
+                      <span className="avatar avatar-md bg-danger-transparent svg-danger">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
                           <rect width="256" height="256" fill="none"></rect>
-                          <path d="M128,24A104,104,0,1,0,232,128,104.13,104.13,0,0,0,128,24Zm40,112H136v32a8,8,0,0,1-16,0V136H88a8,8,0,0,1,0-16h32V88a8,8,0,0,1,16,0v32h32a8,8,0,0,1,0,16Z"></path>
+                          <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm-8,56a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm8,104a12,12,0,1,1,12-12A12,12,0,0,1,128,184Z"></path>
                         </svg>
                       </span>
                     </div>
@@ -165,12 +203,21 @@ export default function ProductsPage() {
                 <div className="card-body">
                   <div className="d-flex align-items-start gap-3 flex-wrap">
                     <div className="flex-fill">
-                      <span className="fs-13 fw-medium">Total Revenue</span>
-                      <h4 className="fw-semibold my-2 lh-1">$1,250,450</h4>
+                      <span className="fs-13 fw-medium">Total Stock Value</span>
+                      <h4 className="fw-semibold my-2 lh-1">
+                        {(() => {
+                          const totalValue = products.reduce((sum, p) => {
+                            const price = Number(p.sale_price) || Number(p.salePrice) || 0;
+                            const stock = Number(p.stock) || 0;
+                            return sum + (price * stock);
+                          }, 0);
+                          return totalValue.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
+                        })()}
+                      </h4>
                       <div className="d-flex align-items-center justify-content-between">
                         <span className="d-block text-muted">
-                          <span className="fs-12 badge bg-success-transparent me-1">+25%</span>
-                          this month
+                          <span className="fs-12 badge bg-info-transparent me-1">FCFA</span>
+                          Inventory value
                         </span>
                       </div>
                     </div>
@@ -214,6 +261,9 @@ export default function ProductsPage() {
                               <th className="gridjs-th" style={{ minWidth: '42px', width: '60px' }}>
                                 <div className="gridjs-th-content">#</div>
                               </th>
+                              <th className="gridjs-th" style={{ minWidth: '60px', width: '80px' }}>
+                                <div className="gridjs-th-content">Image</div>
+                              </th>
                               <th className="gridjs-th" style={{ minWidth: '100px', width: '143px' }}>
                                 <div className="gridjs-th-content">ID Produit</div>
                               </th>
@@ -238,7 +288,7 @@ export default function ProductsPage() {
                           <tbody className="gridjs-tbody">
                             {loading ? (
                               <tr className="gridjs-tr">
-                                <td colSpan={7} className="gridjs-td text-center py-5">
+                                <td colSpan={8} className="gridjs-td text-center py-5">
                                   <div className="spinner-border text-primary" role="status">
                                     <span className="visually-hidden">Chargement...</span>
                                   </div>
@@ -247,7 +297,7 @@ export default function ProductsPage() {
                               </tr>
                             ) : error ? (
                               <tr className="gridjs-tr">
-                                <td colSpan={7} className="gridjs-td text-center py-5 text-danger">
+                                <td colSpan={8} className="gridjs-td text-center py-5 text-danger">
                                   <i className="ri-error-warning-line fs-24 mb-2 d-block"></i>
                                   <p className="fw-medium mb-0">{error}</p>
                                   <button 
@@ -260,7 +310,7 @@ export default function ProductsPage() {
                               </tr>
                             ) : products.length === 0 ? (
                               <tr className="gridjs-tr">
-                                <td colSpan={7} className="gridjs-td text-center py-5">
+                                <td colSpan={8} className="gridjs-td text-center py-5">
                                   <p className="text-muted">Aucun produit trouvé</p>
                                 </td>
                               </tr>
@@ -268,18 +318,44 @@ export default function ProductsPage() {
                               products.map((product, index) => (
                                 <tr key={product.id} className="gridjs-tr">
                                   <td className="gridjs-td">{index + 1}</td>
-                                  <td className="gridjs-td">{product.productId}</td>
-                                  <td className="gridjs-td">{product.name}</td>
-                                  <td className="gridjs-td">{product.galenic}</td>
-                                  <td className="gridjs-td">{product.price}</td>
-                                  <td className="gridjs-td">{product.currency}</td>
+                                  <td className="gridjs-td text-center">
+                                    <div className="avatar avatar-md bg-light overflow-hidden rounded-2" style={{ position: 'relative', width: '40px', height: '40px' }}>
+                                      {product.image ? (
+                                        <Image
+                                          src={product.image}
+                                          alt={product.name}
+                                          fill
+                                          style={{ objectFit: 'cover' }}
+                                          sizes="40px"
+                                        />
+                                      ) : (
+                                        <i className="ri-medicine-bottle-line text-muted fs-20"></i>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="gridjs-td" title={product.id}>
+                                    {product.id ? product.id.substring(0, 8) + '...' : '—'}
+                                  </td>
+                                  <td className="gridjs-td">
+                                    <span className="fw-semibold">{product.name || '—'}</span>
+                                    {product.dci && (
+                                      <span className="d-block text-muted fs-12">{product.dci}</span>
+                                    )}
+                                  </td>
+                                  <td className="gridjs-td">{product.galenic_detail?.name || '—'}</td>
+                                  <td className="gridjs-td">
+                                    {product.sale_price
+                                      ? Number(product.sale_price).toLocaleString('fr-FR')
+                                      : '—'}
+                                  </td>
+                                  <td className="gridjs-td">{product.currency ? product.currency : 'XAF'}</td>
                                   <td className="gridjs-td">
                                     <div className="hstack gap-2 fs-15">
                                       <Link href={`/products/${product.id}/edit`} className="btn btn-icon btn-sm btn-info-transparent rounded-pill">
                                         <i className="ri-edit-line"></i>
                                       </Link>
                                       <button 
-                                        onClick={() => handleDeleteProduct(product.id)}
+                                        onClick={() => openDeleteModal(product.id, product.name)}
                                         className="btn btn-icon btn-sm btn-danger-transparent rounded-pill"
                                       >
                                         <i className="ri-delete-bin-line"></i>
@@ -310,7 +386,77 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {/* Delete Message Toast */}
+      {deleteMessage && (
+        <div
+          className={`alert alert-${deleteMessage.type} position-fixed bottom-0 end-0 m-3 shadow-lg`}
+          style={{ zIndex: 9999, minWidth: '300px' }}
+          role="alert"
+        >
+          <i className={`ri-${deleteMessage.type === 'success' ? 'check-double' : 'error-warning'}-line me-2`}></i>
+          {deleteMessage.text}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <>
+          <div className="modal fade show d-block" tabIndex={-1} role="dialog" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header border-0 pb-0">
+                  <h5 className="modal-title">
+                    <i className="ri-error-warning-line text-danger me-2"></i>
+                    Confirmer la suppression
+                  </h5>
+                  <button type="button" className="btn-close" onClick={closeDeleteModal} disabled={deleting}></button>
+                </div>
+                <div className="modal-body">
+                  <p className="mb-1">Êtes-vous sûr de vouloir supprimer ce produit ?</p>
+                  {productToDelete && (
+                    <p className="fw-semibold text-danger mb-0">
+                      &laquo; {productToDelete.name} &raquo;
+                    </p>
+                  )}
+                  <p className="text-muted fs-13 mt-2 mb-0">
+                    Cette action est irréversible.
+                  </p>
+                </div>
+                <div className="modal-footer border-0 pt-0">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={closeDeleteModal}
+                    disabled={deleting}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={confirmDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Suppression...
+                      </>
+                    ) : (
+                      <>
+                        <i className="ri-delete-bin-line me-1"></i>
+                        Supprimer
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       <Footer />
-    </>
+    </div>
   );
 }

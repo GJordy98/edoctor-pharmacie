@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { api } from '@/lib/api-client';
+import { OrderUI } from '@/lib/types';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import Footer from '@/components/layout/Footer';
@@ -11,25 +13,81 @@ export default function OrdersPage() {
     const [paymentFilter, setPaymentFilter] = useState('all');
     const [deliveryFilter, setDeliveryFilter] = useState('all');
 
-    // Données fictives pour le tableau
-    const orders = [
-        { id: '#dca9fa28', patient: 'Jean Dupont', date: '2023-10-24', total: '15,000 XAF', payment: 'PAID', status: 'COMPLETED' },
-        { id: '#bfc2a3d4', patient: 'Marie Kouam', date: '2023-10-25', total: '8,500 XAF', payment: 'UNPAID', status: 'PENDING' },
-        { id: '#e8f1b2c5', patient: 'Paul Atangana', date: '2023-10-25', total: '22,000 XAF', payment: 'PAID', status: 'APPROVED' },
-        { id: '#a1b2c3d4', patient: 'Alice Ndoumbe', date: '2023-10-26', total: '5,000 XAF', payment: 'UNPAID', status: 'REJECTED' },
-        { id: '#f5e4d3c2', patient: 'Samuel Eto\'o', date: '2023-10-26', total: '45,000 XAF', payment: 'PAID', status: 'COMPLETED' },
-        { id: '#7h8i9j10', patient: 'Cathérine Abena', date: '2023-10-27', total: '12,500 XAF', payment: 'UNPAID', status: 'CANCELLED' },
-        { id: '#k1l2m3n4', patient: 'Pierre Mvondo', date: '2023-10-27', total: '3,000 XAF', payment: 'PAID', status: 'COMPLETED' },
-        { id: '#p5q6r7s8', patient: 'Solange Ngo', date: '2023-10-28', total: '18,500 XAF', payment: 'PAID', status: 'APPROVED' },
-    ];
+    const [orders, setOrders] = useState<OrderUI[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+
+
+    useEffect(() => {
+        const fetchOrders = async () => {
+            setIsLoading(true);
+            try {
+                // Get pharmacy ID from localStorage
+                // The login stores pharmacy data as a JSON object under the key 'officine'
+                let pharmacyId: string | null = null;
+                const officineRaw = localStorage.getItem('officine');
+                if (officineRaw) {
+                    try {
+                        const officine = JSON.parse(officineRaw);
+                        pharmacyId = officine?.id || officine?.officine_id || null;
+                    } catch {
+                        console.warn("Failed to parse officine from localStorage");
+                    }
+                }
+
+                if (!pharmacyId) {
+                    console.warn("No pharmacy ID found in localStorage (key: officine -> id)");
+                    setOrders([]);
+                    setIsLoading(false);
+                    return;
+                }
+
+                console.log('Fetching orders for pharmacy ID:', pharmacyId);
+                // Fetches PENDING + RESERVED + REJECTED orders in parallel and deduplicates
+                const ordersArray = await api.getAllPharmacyOrders();
+
+                console.log('All pharmacy orders API response:', ordersArray);
+
+                // Map to OrderUI – handle both flat and nested shapes
+                const mappedOrders: OrderUI[] = ordersArray.map((item) => {
+                    // The new endpoint returns patient/status at root level
+                    const patient = item.patient ?? item.order?.patient;
+                    const patientName = patient
+                        ? `${patient.first_name ?? ''} ${patient.last_name ?? ''}`.trim() || 'Client'
+                        : 'Client';
+
+                    return {
+                        id: item.id,
+                        patient: patientName,
+                        date: item.created_at ?? item.order?.created_at ?? new Date().toLocaleDateString(),
+                        total: (() => {
+                            const raw = item.total_amount ?? item.order?.total_amount;
+                            if (!raw) return '0 XAF';
+                            const num = parseFloat(String(raw));
+                            return isNaN(num) ? '0 XAF' : `${Math.round(num).toLocaleString('fr-FR')} XAF`;
+                        })(),
+                        payment: item.payment_status ?? item.order?.payment_status ?? 'UNPAID',
+                        status: item.status ?? item.order?.status ?? 'PENDING',
+                    };
+                });
+                setOrders(mappedOrders);
+
+            } catch (error) {
+                console.error("Error fetching orders:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchOrders();
+    }, []);
 
     // Données fictives pour les statistiques
     const stats = [
         { label: 'Total Commandes', count: orders.length, sub: 'Toutes les commandes', type: 'primary', icon: 'ri-shopping-cart-line', filter: 'all' },
         { label: 'En Attente', count: orders.filter(o => o.status === 'PENDING').length, sub: 'À traiter', type: 'secondary', icon: 'ri-time-line', filter: 'PENDING' },
-        { label: 'Approuvées', count: orders.filter(o => o.status === 'APPROVED').length, sub: 'Confirmées', type: 'success', icon: 'ri-checkbox-circle-line', filter: 'APPROVED' },
+        { label: 'Réservées', count: orders.filter(o => o.status === 'RESERVED').length, sub: 'Produits disponibles', type: 'success', icon: 'ri-checkbox-circle-line', filter: 'RESERVED' },
         { label: 'Rejetées', count: orders.filter(o => o.status === 'REJECTED').length, sub: 'Refusées', type: 'danger', icon: 'ri-close-circle-line', filter: 'REJECTED' },
-        { label: 'Terminées', count: orders.filter(o => o.status === 'COMPLETED').length, sub: 'Livrées', type: 'success', icon: 'ri-medal-line', filter: 'COMPLETED' },
     ];
 
     const filteredOrders = orders.filter(order => {
@@ -41,7 +99,7 @@ export default function OrdersPage() {
     });
 
     return (
-        <div className="bg-white min-vh-100">
+        <div className="page">
             <style jsx>{`
                 .dashboard-main-card {
                     transition: all 0.3s ease;
@@ -89,6 +147,8 @@ export default function OrdersPage() {
             <main className="main-content app-content">
                 <div className="container-fluid page-container main-body-container">
                     
+
+
                     {/* Breadcrumb */}
                     <div className="page-header-breadcrumb mb-4">
                         <div className="d-flex align-items-center justify-content-between flex-wrap">
@@ -161,10 +221,8 @@ export default function OrdersPage() {
                                         >
                                             <option value="all">Tous les statuts</option>
                                             <option value="PENDING">En attente</option>
-                                            <option value="APPROVED">Approuvée</option>
-                                            <option value="COMPLETED">Terminée</option>
+                                            <option value="RESERVED">Réservée</option>
                                             <option value="REJECTED">Rejetée</option>
-                                            <option value="CANCELLED">Annulée</option>
                                         </select>
 
                                         <button className="btn btn-primary d-flex align-items-center gap-2" style={{ backgroundColor: '#3ab047', borderColor: '#3ab047' }}>
@@ -188,7 +246,15 @@ export default function OrdersPage() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {filteredOrders.length > 0 ? (
+                                                {isLoading ? (
+                                                    <tr>
+                                                        <td colSpan={7} className="text-center py-5">
+                                                            <div className="spinner-border text-primary" role="status">
+                                                                <span className="visually-hidden">Chargement...</span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ) : filteredOrders.length > 0 ? (
                                                     filteredOrders.map((order, idx) => (
                                                         <tr key={idx}>
                                                             <td className="ps-4 fw-medium text-primary">{order.id}</td>
@@ -202,15 +268,13 @@ export default function OrdersPage() {
                                                             </td>
                                                             <td>
                                                                 <span className={`badge ${
-                                                                    order.status === 'COMPLETED' ? 'bg-success' : 
-                                                                    order.status === 'PENDING' ? 'bg-warning' : 
-                                                                    order.status === 'APPROVED' ? 'bg-primary' :
+                                                                    order.status === 'RESERVED' ? 'bg-success' :
+                                                                    order.status === 'PENDING' ? 'bg-warning' :
                                                                     order.status === 'REJECTED' ? 'bg-danger' :
                                                                     'bg-secondary'
                                                                 } bg-opacity-10 text-${
-                                                                    order.status === 'COMPLETED' ? 'success' : 
-                                                                    order.status === 'PENDING' ? 'warning' : 
-                                                                    order.status === 'APPROVED' ? 'primary' :
+                                                                    order.status === 'RESERVED' ? 'success' :
+                                                                    order.status === 'PENDING' ? 'warning' :
                                                                     order.status === 'REJECTED' ? 'danger' :
                                                                     'secondary'
                                                                 }`}>
