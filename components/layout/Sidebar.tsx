@@ -81,7 +81,7 @@ export default function Sidebar() {
                               Ventes
                             </Link>
                           </li>
-                          
+
                           {/* Pharmacie Sub-menu */}
                           <li className="slide has-sub active open">
                             <a href="#" className="side-menu__item active open">
@@ -90,7 +90,7 @@ export default function Sidebar() {
                                 <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H40V56H216V200ZM176,88a48,48,0,0,1-96,0,8,8,0,0,1,16,0,32,32,0,0,0,64,0,8,8,0,0,1,16,0Z"></path>
                               </svg>
                               Pharmacie
-                              <span className="badge bg-primary-transparent ms-2">11</span>
+                              <span className="badge bg-primary-transparent ms-2">12</span>
                               <i className="ri-arrow-right-s-line side-menu__angle"></i>
                             </a>
                             <ul className="slide-menu child2" style={{ display: 'block' }}>
@@ -102,6 +102,11 @@ export default function Sidebar() {
                               <li className="slide">
                                 <Link href="/orders" className={`side-menu__item ${isActive('/orders')}`}>
                                   Commandes
+                                </Link>
+                              </li>
+                              <li className="slide">
+                                <Link href="/pickup" className={`side-menu__item ${isActive('/pickup')}`}>
+                                  Pickups &amp; Livraisons
                                 </Link>
                               </li>
                               <li className="slide">
@@ -165,7 +170,7 @@ export default function Sidebar() {
                           <span className="side-menu__label">Theme Settings</span>
                         </a>
                       </li>
-                      
+
                       {/* Logout */}
                       <li className="slide">
                         <a href="#" onClick={handleLogout} className="side-menu__item">

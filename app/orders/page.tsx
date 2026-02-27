@@ -87,12 +87,13 @@ export default function OrdersPage() {
         { label: 'Total Commandes', count: orders.length, sub: 'Toutes les commandes', type: 'primary', icon: 'ri-shopping-cart-line', filter: 'all' },
         { label: 'En Attente', count: orders.filter(o => o.status === 'PENDING').length, sub: 'À traiter', type: 'secondary', icon: 'ri-time-line', filter: 'PENDING' },
         { label: 'Réservées', count: orders.filter(o => o.status === 'RESERVED').length, sub: 'Produits disponibles', type: 'success', icon: 'ri-checkbox-circle-line', filter: 'RESERVED' },
+        { label: 'Pickup', count: orders.filter(o => o.status === 'IN_PICKUP').length, sub: 'En cours de remise', type: 'info', icon: 'ri-qr-scan-line', filter: 'IN_PICKUP' },
         { label: 'Rejetées', count: orders.filter(o => o.status === 'REJECTED').length, sub: 'Refusées', type: 'danger', icon: 'ri-close-circle-line', filter: 'REJECTED' },
     ];
 
     const filteredOrders = orders.filter(order => {
-        const matchesSearch = order.patient.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                             order.id.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = order.patient.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            order.id.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesPayment = paymentFilter === 'all' || order.payment === paymentFilter;
         const matchesStatus = deliveryFilter === 'all' || order.status === deliveryFilter;
         return matchesSearch && matchesPayment && matchesStatus;
@@ -146,18 +147,24 @@ export default function OrdersPage() {
 
             <main className="main-content app-content">
                 <div className="container-fluid page-container main-body-container">
-                    
+
 
 
                     {/* Breadcrumb */}
                     <div className="page-header-breadcrumb mb-4">
-                        <div className="d-flex align-items-center justify-content-between flex-wrap">
-                            <h1 className="page-title fw-semibold fs-18 mb-0">Tableau de Bord des Commandes</h1>
-                            <ol className="breadcrumb mb-0">
-                                <li className="breadcrumb-item"><Link href="/">Accueil</Link></li>
-                                <li className="breadcrumb-item">Pharmacie</li>
-                                <li className="breadcrumb-item active">Commandes</li>
-                            </ol>
+                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                            <div>
+                                <h1 className="page-title fw-semibold fs-18 mb-1">Tableau de Bord des Commandes</h1>
+                                <ol className="breadcrumb mb-0">
+                                    <li className="breadcrumb-item"><Link href="/">Accueil</Link></li>
+                                    <li className="breadcrumb-item">Pharmacie</li>
+                                    <li className="breadcrumb-item active">Commandes</li>
+                                </ol>
+                            </div>
+                            <Link href="/pickup" className="btn btn-outline-success btn-sm d-flex align-items-center gap-2">
+                                <i className="ri-qr-scan-line"></i>
+                                Pickups &amp; Livraisons
+                            </Link>
                         </div>
                     </div>
 
@@ -165,7 +172,7 @@ export default function OrdersPage() {
                     <div className="row mb-4">
                         {stats.map((stat, idx) => (
                             <div key={idx} className="col-xl-2 col-lg-4 col-md-6 col-sm-6 mb-3">
-                                <div 
+                                <div
                                     className={`card custom-card dashboard-main-card h-100 border-0 shadow-sm ${stat.type} ${deliveryFilter === stat.filter ? 'active' : ''}`}
                                     onClick={() => setDeliveryFilter(stat.filter)}
                                 >
@@ -193,9 +200,9 @@ export default function OrdersPage() {
                                     <div className="search-box" style={{ maxWidth: '300px', flex: '1' }}>
                                         <div className="input-group">
                                             <span className="input-group-text bg-light border-0"><i className="ri-search-line"></i></span>
-                                            <input 
-                                                type="text" 
-                                                className="form-control border-0 bg-light" 
+                                            <input
+                                                type="text"
+                                                className="form-control border-0 bg-light"
                                                 placeholder="Rechercher une commande..."
                                                 value={searchTerm}
                                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -204,7 +211,7 @@ export default function OrdersPage() {
                                     </div>
 
                                     <div className="d-flex gap-2 flex-wrap align-items-center">
-                                        <select 
+                                        <select
                                             className="form-select border-light w-auto"
                                             value={paymentFilter}
                                             onChange={(e) => setPaymentFilter(e.target.value)}
@@ -214,7 +221,7 @@ export default function OrdersPage() {
                                             <option value="UNPAID">Non payé</option>
                                         </select>
 
-                                        <select 
+                                        <select
                                             className="form-select border-light w-auto"
                                             value={deliveryFilter}
                                             onChange={(e) => setDeliveryFilter(e.target.value)}
@@ -222,6 +229,7 @@ export default function OrdersPage() {
                                             <option value="all">Tous les statuts</option>
                                             <option value="PENDING">En attente</option>
                                             <option value="RESERVED">Réservée</option>
+                                            <option value="IN_PICKUP">Pickup</option>
                                             <option value="REJECTED">Rejetée</option>
                                         </select>
 
@@ -267,25 +275,30 @@ export default function OrdersPage() {
                                                                 </span>
                                                             </td>
                                                             <td>
-                                                                <span className={`badge ${
-                                                                    order.status === 'RESERVED' ? 'bg-success' :
-                                                                    order.status === 'PENDING' ? 'bg-warning' :
-                                                                    order.status === 'REJECTED' ? 'bg-danger' :
-                                                                    'bg-secondary'
-                                                                } bg-opacity-10 text-${
-                                                                    order.status === 'RESERVED' ? 'success' :
-                                                                    order.status === 'PENDING' ? 'warning' :
-                                                                    order.status === 'REJECTED' ? 'danger' :
-                                                                    'secondary'
-                                                                }`}>
-                                                                    {order.status}
+                                                                <span className={`badge ${order.status === 'RESERVED' ? 'bg-success' :
+                                                                        order.status === 'PENDING' ? 'bg-warning' :
+                                                                            order.status === 'IN_PICKUP' ? 'bg-info' :
+                                                                                order.status === 'REJECTED' ? 'bg-danger' :
+                                                                                    'bg-secondary'
+                                                                    } bg-opacity-10 text-${order.status === 'RESERVED' ? 'success' :
+                                                                        order.status === 'PENDING' ? 'warning' :
+                                                                            order.status === 'IN_PICKUP' ? 'info' :
+                                                                                order.status === 'REJECTED' ? 'danger' :
+                                                                                    'secondary'
+                                                                    }`}>
+                                                                    {order.status === 'IN_PICKUP' ? 'Pickup' : order.status}
                                                                 </span>
                                                             </td>
                                                             <td className="text-end pe-4">
-                                                                <Link href={`/order-details/${order.id.replace('#', '')}`} className="btn btn-icon btn-sm btn-light-transparent rounded-pill me-1">
+                                                                <Link href={`/order-details/${order.id.replace('#', '')}`} className="btn btn-icon btn-sm btn-light-transparent rounded-pill me-1" title="Voir détails">
                                                                     <i className="ri-eye-line"></i>
                                                                 </Link>
-                                                                <button className="btn btn-icon btn-sm btn-light-transparent rounded-pill text-info">
+                                                                {(order.status === 'RESERVED' || order.status === 'IN_PICKUP') && (
+                                                                    <Link href="/pickup" className="btn btn-icon btn-sm btn-light-transparent rounded-pill text-success me-1" title="Gérer pickup">
+                                                                        <i className="ri-qr-scan-line"></i>
+                                                                    </Link>
+                                                                )}
+                                                                <button className="btn btn-icon btn-sm btn-light-transparent rounded-pill text-info" title="Imprimer">
                                                                     <i className="ri-printer-line"></i>
                                                                 </button>
                                                             </td>

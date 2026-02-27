@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api-client';
-import { InvoiceResponse, QrCodeResponse } from '@/lib/types';
+import { InvoiceResponse, QrCodeResponse, Product } from '@/lib/types';
 
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
@@ -68,6 +68,8 @@ export default function OrderDetailsPage() {
     // État pour la sélection de produits (Case 2 & 3)
     const [selectedProductId, setSelectedProductId] = useState('');
     const [quantity, setQuantity] = useState(1);
+    const [pharmacyProducts, setPharmacyProducts] = useState<Product[]>([]);
+    const [productsLoading, setProductsLoading] = useState(false);
 
     // --- Facture ---
     const [invoice, setInvoice] = useState<InvoiceResponse | null>(null);
@@ -98,21 +100,31 @@ export default function OrderDetailsPage() {
         }
     }, []);
 
-    // Simulation de chargement des données
+    // Chargement des produits de la pharmacie (pour le dropdown Cas 2 & 3)
+    useEffect(() => {
+        if (!officineId) return;
+        setProductsLoading(true);
+        api.getProducts(officineId)
+            .then(data => setPharmacyProducts(Array.isArray(data) ? data : []))
+            .catch(() => setPharmacyProducts([]))
+            .finally(() => setProductsLoading(false));
+    }, [officineId]);
+
+    // Chargement des données de la commande
     useEffect(() => {
         const fetchOrderDetails = async () => {
             setIsLoading(true);
             try {
                 const data = await api.getOrderDetails(id as string);
-                
+
                 // Map API response to component state
                 if (data.order) {
                     const patient = data.order.patient;
                     setOrder({
                         id: data.order.id as string,
                         patient: {
-                           name: `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'Client',
-                           phone: patient?.phone ?? ''
+                            name: `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'Client',
+                            phone: patient?.phone ?? ''
                         },
                         date: data.order.created_at ?? new Date().toISOString(),
                         status: data.order.status ?? '',
@@ -121,7 +133,7 @@ export default function OrderDetailsPage() {
                         total_amount: parseFloat(String(data.order.total_amount))
                     });
                 }
-                
+
                 // If items are returned separately or nested, map them here
                 // Assumed structure based on legacy code/mock:
                 if (data.items) {
@@ -166,16 +178,19 @@ export default function OrderDetailsPage() {
 
     const handleAddProduct = () => {
         if (!selectedProductId) return;
-        // Logique d'ajout (simulation)
+        const product = pharmacyProducts.find(p => p.id === selectedProductId);
+        if (!product) return;
+        const unitPrice = product.sale_price ?? 0;
+        const label = [product.name, product.dci, product.dosage].filter(Boolean).join(' — ');
         const newProduct: OrderItem = {
             id: Date.now(),
-            name: "Produit Ajouté " + selectedProductId,
+            name: label,
             quantity: quantity,
-            price: 1500,
-            total: 1500 * quantity,
+            price: unitPrice,
+            total: unitPrice * quantity,
             status: 'reserved'
         };
-        setAddedProducts([...addedProducts, newProduct]);
+        setAddedProducts(prev => [...prev, newProduct]);
         setSelectedProductId('');
         setQuantity(1);
     };
@@ -188,15 +203,17 @@ export default function OrderDetailsPage() {
     const validateOrder = async () => {
         const allItems = [...items, ...addedProducts];
         const hasReserved = allItems.some(i => i.status === 'reserved');
-        const hasPending  = allItems.some(i => i.status === 'pending');
 
-        if (hasPending) {
-            alert("Veuillez marquer la disponibilité de chaque produit avant de valider.");
+        // Si aucun produit n'est marqué du tout, on bloque pour éviter une validation accidentelle
+        const allStillPending = allItems.every(i => i.status === 'pending');
+        if (allStillPending) {
+            alert("Veuillez marquer la disponibilité d'au moins un produit avant de valider.");
             return;
         }
 
         const isRejection = !hasReserved;
         // Le backend accepte uniquement "RESERVED" ou "REJECTED"
+        // Les items en "pending" restants sont traités comme indisponibles
         const finalStatus = isRejection ? 'REJECTED' : 'RESERVED';
 
         setIsValidating(true);
@@ -216,6 +233,7 @@ export default function OrderDetailsPage() {
             setIsValidating(false);
         }
     };
+
 
     // --- Handlers Facture ---
     const handleGetInvoice = async () => {
@@ -260,8 +278,10 @@ export default function OrderDetailsPage() {
             setQrCodeData(res);
             // Open modal via Bootstrap JS if available
             if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).bootstrap) {
-                const modal = new ((window as unknown as Record<string, { Modal: unknown }>).bootstrap.Modal)(qrModalRef.current!);
-                (modal as { show: () => void }).show();
+                type BootstrapModal = { new(el: Element): { show(): void } };
+                const BS = (window as unknown as Record<string, unknown>).bootstrap as Record<string, BootstrapModal>;
+                const modal = new BS.Modal(qrModalRef.current!);
+                modal.show();
             }
         } catch (err: unknown) {
             setQrError(err instanceof Error ? err.message : 'Erreur lors de la récupération du QR code.');
@@ -407,9 +427,9 @@ export default function OrderDetailsPage() {
                     {/* Badge du Cas */}
                     <div className={`case-badge bg-primary text-white mb-3 text-uppercase fw-bold shadow-sm`} style={{ fontSize: '0.75rem', padding: '6px 15px', borderRadius: '50px' }}>
                         CAS {orderCase} : {
-                            orderCase === 1 ? "Produits uniquement" : 
-                            orderCase === 2 ? "Ordonnance uniquement" : 
-                            "Ordonnance + Produits"
+                            orderCase === 1 ? "Produits uniquement" :
+                                orderCase === 2 ? "Ordonnance uniquement" :
+                                    "Ordonnance + Produits"
                         }
                     </div>
 
@@ -461,11 +481,11 @@ export default function OrderDetailsPage() {
                                     </div>
                                     <div className="card-body text-center prescription-container">
                                         {order?.prescription && (
-                                            <Image 
-                                                src={order.prescription} 
-                                                alt="Ordonnance" 
-                                                width={600} 
-                                                height={800} 
+                                            <Image
+                                                src={order.prescription}
+                                                alt="Ordonnance"
+                                                width={600}
+                                                height={800}
                                                 className="img-fluid rounded shadow-sm"
                                             />
                                         )}
@@ -498,15 +518,15 @@ export default function OrderDetailsPage() {
                                                             <td>{item.price} XAF</td>
                                                             <td className="fw-bold">{item.total} XAF</td>
                                                             <td className="text-end pe-4">
-                                                                 <div className="btn-group btn-group-sm" role="group">
-                                                                    <button 
+                                                                <div className="btn-group btn-group-sm" role="group">
+                                                                    <button
                                                                         type="button"
                                                                         className={`btn ${item.status === 'reserved' ? 'btn-success' : 'btn-outline-success'}`}
                                                                         onClick={() => toggleItemStatus(item.id, 'reserved')}
                                                                     >
                                                                         Réserver
                                                                     </button>
-                                                                    <button 
+                                                                    <button
                                                                         type="button"
                                                                         className={`btn ${item.status === 'unavailable' ? 'btn-danger' : 'btn-outline-danger'}`}
                                                                         onClick={() => toggleItemStatus(item.id, 'unavailable')}
@@ -532,20 +552,31 @@ export default function OrderDetailsPage() {
                                     <div className="card-body">
                                         <div className="row g-3">
                                             <div className="col-md-7">
-                                                <select 
-                                                    className="form-select" 
+                                                <select
+                                                    className="form-select"
                                                     value={selectedProductId}
                                                     onChange={(e) => setSelectedProductId(e.target.value)}
+                                                    disabled={productsLoading}
                                                 >
-                                                    <option value="">Sélectionner un produit</option>
-                                                    <option value="101">Paracétamol 500mg</option>
-                                                    <option value="102">Efferalgan</option>
+                                                    <option value="">
+                                                        {productsLoading
+                                                            ? 'Chargement des produits…'
+                                                            : pharmacyProducts.length === 0
+                                                                ? 'Aucun produit disponible'
+                                                                : 'Sélectionner un produit'}
+                                                    </option>
+                                                    {pharmacyProducts.map(p => (
+                                                        <option key={p.id} value={p.id}>
+                                                            {[p.name, p.dci, p.dosage].filter(Boolean).join(' — ')}
+                                                            {p.sale_price ? ` (${p.sale_price} XAF)` : ''}
+                                                        </option>
+                                                    ))}
                                                 </select>
                                             </div>
                                             <div className="col-md-3">
-                                                <input 
-                                                    type="number" 
-                                                    className="form-control" 
+                                                <input
+                                                    type="number"
+                                                    className="form-control"
                                                     value={quantity}
                                                     min="1"
                                                     onChange={(e) => setQuantity(parseInt(e.target.value))}
@@ -584,7 +615,7 @@ export default function OrderDetailsPage() {
                                             </ul>
                                         </div>
                                     )}
-                                    
+
                                     <div className="d-flex justify-content-between mb-2">
                                         <span>Total Panier</span>
                                         <span className="fw-bold">{items.filter(i => i.status !== 'unavailable').reduce((acc, i) => acc + i.total, 0)} XAF</span>
@@ -601,11 +632,11 @@ export default function OrderDetailsPage() {
                                         </span>
                                     </div>
 
-                                    <button 
+                                    <button
                                         type="button"
-                                        className={`btn ${[...items, ...addedProducts].filter(i => i.status === 'reserved').length > 0 ? 'btn-success' : 'btn-danger'} btn-lg w-100 mb-3 shadow-sm`} 
+                                        className={`btn ${[...items, ...addedProducts].filter(i => i.status === 'reserved').length > 0 ? 'btn-success' : 'btn-danger'} btn-lg w-100 mb-3 shadow-sm`}
                                         onClick={validateOrder}
-                                        disabled={isValidating || [...items, ...addedProducts].some(i => i.status === 'pending')}
+                                        disabled={isValidating || [...items, ...addedProducts].every(i => i.status === 'pending')}
                                     >
                                         {isValidating ? (
                                             <>
@@ -615,16 +646,16 @@ export default function OrderDetailsPage() {
                                         ) : (
                                             <>
                                                 <i className="ri-check-line me-2"></i>
-                                                {[...items, ...addedProducts].filter(i => i.status === 'reserved').length > 0 
-                                                    ? "Valider la commande" 
+                                                {[...items, ...addedProducts].filter(i => i.status === 'reserved').length > 0
+                                                    ? "Valider la commande"
                                                     : "Rejeter la commande"}
                                             </>
                                         )}
                                     </button>
                                     {[...items, ...addedProducts].some(i => i.status === 'pending') && (
-                                        <p className="text-danger small text-center mb-3 fw-medium">
-                                            <i className="ri-error-warning-line me-1"></i>
-                                            Marquez la disponibilité de chaque produit.
+                                        <p className="text-warning small text-center mb-3 fw-medium">
+                                            <i className="ri-information-line me-1"></i>
+                                            {[...items, ...addedProducts].filter(i => i.status === 'pending').length} produit(s) non encore marqué(s) — seront ignorés.
                                         </p>
                                     )}
                                     <button className="btn btn-outline-secondary w-100" onClick={() => router.push('/orders')}>
@@ -676,7 +707,7 @@ export default function OrderDetailsPage() {
                                 </>
                             ) : (
                                 <p className="text-muted">Aucun QR code disponible pour cette commande.</p>
-                            ))}
+                            )}
                         </div>
                         <div className="modal-footer">
                             <button type="button" className="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
