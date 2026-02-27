@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import Footer from '@/components/layout/Footer';
@@ -27,16 +26,7 @@ interface ValidationHistoryItem {
     orderId?: string;
 }
 
-interface PickupOfficine {
-    id?: string;
-    officine_id?: string;
-    order_id?: string;
-    order?: string;
-    officine?: { id?: string; name?: string; adresse?: { city?: string; rue?: string } };
-    status?: string;
-    created_at?: string;
-    [key: string]: unknown;
-}
+
 
 // ── Helpers ─────────────────────────────────────────────
 function formatDate(iso: string) {
@@ -98,9 +88,7 @@ export default function ValidateOrderOrQrPage() {
     const [history, setHistory] = useState<ValidationHistoryItem[]>([]);
     const [barcodeDetectorSupported, setBarcodeDetectorSupported] = useState<boolean | null>(null);
 
-    // ── État pickups en attente ──
-    const [pickups, setPickups] = useState<PickupOfficine[]>([]);
-    const [pickupsLoading, setPickupsLoading] = useState(true);
+
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
@@ -112,29 +100,7 @@ export default function ValidateOrderOrQrPage() {
         setBarcodeDetectorSupported('BarcodeDetector' in window);
     }, []);
 
-    // Chargement des pickups en attente
-    const fetchPickups = useCallback(async () => {
-        setPickupsLoading(true);
-        try {
-            const data = await api.getPickupOfficines();
-            if (Array.isArray(data)) {
-                setPickups(data as PickupOfficine[]);
-            } else if (data && typeof data === 'object') {
-                const paged = data as Record<string, unknown>;
-                if (Array.isArray(paged.results)) setPickups(paged.results as PickupOfficine[]);
-                else if (Array.isArray(paged.data)) setPickups(paged.data as PickupOfficine[]);
-                else setPickups([data as PickupOfficine]);
-            } else {
-                setPickups([]);
-            }
-        } catch {
-            setPickups([]);
-        } finally {
-            setPickupsLoading(false);
-        }
-    }, []);
 
-    useEffect(() => { fetchPickups(); }, [fetchPickups]);
 
     // Appel API de validation
     const submitQrCode = useCallback(async (code: string) => {
@@ -154,8 +120,6 @@ export default function ValidateOrderOrQrPage() {
                 status: 'success',
                 orderId: result.order_id,
             }, ...prev.slice(0, 9)]);
-            // Rafraîchir la liste des pickups après un scan réussi
-            fetchPickups();
             // Arrêter le scanner après succès
             stopScanner();
         } catch (err: unknown) {
@@ -170,7 +134,7 @@ export default function ValidateOrderOrQrPage() {
         } finally {
             setLoading(false);
         }
-    }, [fetchPickups]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Scanner QR depuis le flux vidéo (BarcodeDetector)
     const scanFrame = useCallback(() => {
@@ -318,75 +282,6 @@ export default function ValidateOrderOrQrPage() {
                     <div className="row">
                         {/* Zone scanner */}
                         <div className="col-lg-8">
-
-                            {/* ── Section pickups en attente ── */}
-                            <div className="card custom-card mb-4">
-                                <div className="card-header d-flex align-items-center justify-content-between">
-                                    <div className="card-title mb-0">
-                                        <i className="ri-store-2-line me-2 text-success"></i>
-                                        Commandes en attente de retrait
-                                        {pickups.length > 0 && (
-                                            <span className="badge bg-success ms-2">{pickups.length}</span>
-                                        )}
-                                    </div>
-                                    <button className="btn btn-sm btn-outline-secondary" onClick={fetchPickups} disabled={pickupsLoading}>
-                                        <i className="ri-refresh-line"></i>
-                                    </button>
-                                </div>
-                                <div className="card-body p-0">
-                                    {pickupsLoading ? (
-                                        <div className="text-center py-3 text-muted small">
-                                            <span className="spinner-border spinner-border-sm me-2"></span>Chargement…
-                                        </div>
-                                    ) : pickups.length === 0 ? (
-                                        <div className="text-center py-3 text-muted small">
-                                            <i className="ri-inbox-line me-1"></i>Aucune commande en attente de retrait.
-                                        </div>
-                                    ) : (
-                                        <div className="table-responsive">
-                                            <table className="table table-hover align-middle mb-0 small">
-                                                <thead className="table-light">
-                                                    <tr>
-                                                        <th className="ps-3">Officine</th>
-                                                        <th>Ville</th>
-                                                        <th>Commande</th>
-                                                        <th>Date</th>
-                                                        <th className="pe-3">Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {pickups.map((p, idx) => {
-                                                        const orderId = String(p.order_id ?? p.order ?? p.id ?? '');
-                                                        const officineName = p.officine?.name ?? `Officine ${idx + 1}`;
-                                                        const city = p.officine?.adresse?.city ?? '—';
-                                                        return (
-                                                            <tr key={idx}>
-                                                                <td className="ps-3 fw-semibold">{officineName}</td>
-                                                                <td className="text-muted">{city}</td>
-                                                                <td>
-                                                                    {orderId ? (
-                                                                        <code className="bg-light px-1 rounded">#{orderId.slice(0, 8)}</code>
-                                                                    ) : '—'}
-                                                                </td>
-                                                                <td className="text-muted">
-                                                                    {p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR') : '—'}
-                                                                </td>
-                                                                <td className="pe-3">
-                                                                    {orderId && (
-                                                                        <Link href={`/order-details/${orderId}`} className="btn btn-sm btn-light">
-                                                                            <i className="ri-eye-line"></i>
-                                                                        </Link>
-                                                                    )}
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
 
                             <div className="card custom-card">
                                 <div className="card-header bg-primary text-white">
