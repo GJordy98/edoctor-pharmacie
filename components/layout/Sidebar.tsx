@@ -105,11 +105,6 @@ export default function Sidebar() {
                                 </Link>
                               </li>
                               <li className="slide">
-                                <Link href="/pickup" className={`side-menu__item ${isActive('/pickup')}`}>
-                                  Pickups &amp; Livraisons
-                                </Link>
-                              </li>
-                              <li className="slide">
                                 <Link href="/send-prescription" className={`side-menu__item ${isActive('/send-prescription')}`}>
                                   Envoyer Ordonnance
                                 </Link>

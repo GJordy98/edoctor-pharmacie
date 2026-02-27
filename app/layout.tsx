@@ -18,38 +18,43 @@ import '../public/css/styles.css';
 export const metadata = {
   title: 'Pharmacie - Gestion',
   description: 'Système de gestion de pharmacie',
+  icons: {
+    icon: '/images/brand-logos/toggle-logo.png',
+    shortcut: '/images/brand-logos/toggle-logo.png',
+    apple: '/images/brand-logos/toggle-logo.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html 
-      lang="fr" 
-      dir="ltr" 
-      data-nav-layout="vertical" 
+    <html
+      lang="fr"
+      dir="ltr"
+      data-nav-layout="vertical"
       data-header-styles="transparent"
-      data-width="fullwidth" 
-      data-menu-styles="transparent" 
-      data-page-style="flat" 
+      data-width="fullwidth"
+      data-menu-styles="transparent"
+      data-page-style="flat"
       data-toggled="double-menu-open"
-      data-vertical-style="doublemenu" 
+      data-vertical-style="doublemenu"
       data-loader="disable"
       suppressHydrationWarning
     >
       <head>
         {/* head items are now handled via metadata and imports */}
       </head>
-      
+
       <body suppressHydrationWarning>
         <div className="progress-top-bar"></div>
-        
+
         <div id="loader" className="d-none">
           <Image src="/images/media/loader.svg" alt="Loading" width={40} height={40} />
         </div>
-        
+
         <div className="page">
           {children}
         </div>
-        
+
         {/* Scroll To Top */}
         <div className="scrollToTop">
           <span className="arrow lh-1">
@@ -57,7 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </span>
         </div>
         <div id="responsive-overlay"></div>
-        
+
         {/* Scripts */}
         <Script src="/js/main.js" strategy="beforeInteractive" />
         <Script src="/libs/@popperjs/core/umd/popper.min.js" strategy="beforeInteractive" />
