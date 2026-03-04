@@ -1,340 +1,347 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { api } from '@/lib/api-client';
-import { OrderUI } from '@/lib/types';
-import Header from '@/components/layout/Header';
-import Sidebar from '@/components/layout/Sidebar';
-import Footer from '@/components/layout/Footer';
+import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import {
+  Search,
+  RefreshCw,
+  ClipboardList,
+  Clock,
+  CheckCircle2,
+  PackageCheck,
+  XCircle,
+  Eye,
+  QrCode,
+  Truck,
+} from "lucide-react";
+import { api } from "@/lib/api-client";
+import { OrderUI } from "@/lib/types";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import StatusBadge from "@/components/ui/StatusBadge";
 
-export default function OrdersPage() {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [paymentFilter, setPaymentFilter] = useState('all');
-    const [deliveryFilter, setDeliveryFilter] = useState('all');
+/* ── helpers ── */
+function fmt(raw: string | number | undefined): string {
+  if (!raw) return "0 XAF";
+  const n = parseFloat(String(raw));
+  return isNaN(n) ? "0 XAF" : `${Math.round(n).toLocaleString("fr-FR")} XAF`;
+}
 
-    const [orders, setOrders] = useState<OrderUI[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+function fmtDate(raw: string | undefined): string {
+  if (!raw) return "—";
+  return new Date(raw).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
+/* ── skeleton ── */
+function SkeletonRow() {
+  return (
+    <tr>
+      {Array.from({ length: 7 }).map((_, i) => (
+        <td key={i} className="px-4 py-4">
+          <div className="skeleton h-4 rounded w-3/4" />
+        </td>
+      ))}
+    </tr>
+  );
+}
 
-
-    useEffect(() => {
-        const fetchOrders = async () => {
-            setIsLoading(true);
-            try {
-                // Get pharmacy ID from localStorage
-                // The login stores pharmacy data as a JSON object under the key 'officine'
-                let pharmacyId: string | null = null;
-                const officineRaw = localStorage.getItem('officine');
-                if (officineRaw) {
-                    try {
-                        const officine = JSON.parse(officineRaw);
-                        pharmacyId = officine?.id || officine?.officine_id || null;
-                    } catch {
-                        console.warn("Failed to parse officine from localStorage");
-                    }
-                }
-
-                if (!pharmacyId) {
-                    console.warn("No pharmacy ID found in localStorage (key: officine -> id)");
-                    setOrders([]);
-                    setIsLoading(false);
-                    return;
-                }
-
-                console.log('Fetching orders for pharmacy ID:', pharmacyId);
-                // Fetches PENDING + RESERVED + REJECTED orders in parallel and deduplicates
-                const ordersArray = await api.getAllPharmacyOrders();
-
-                console.log('All pharmacy orders API response:', ordersArray);
-
-                // Map to OrderUI – handle both flat and nested shapes
-                const mappedOrders: OrderUI[] = ordersArray.map((item) => {
-                    // The new endpoint returns patient/status at root level
-                    const patient = item.patient ?? item.order?.patient;
-                    const patientName = patient
-                        ? `${patient.first_name ?? ''} ${patient.last_name ?? ''}`.trim() || 'Client'
-                        : 'Client';
-
-                    return {
-                        id: item.id,
-                        patient: patientName,
-                        date: item.created_at ?? item.order?.created_at ?? new Date().toLocaleDateString(),
-                        total: (() => {
-                            const raw = item.total_amount ?? item.order?.total_amount;
-                            if (!raw) return '0 XAF';
-                            const num = parseFloat(String(raw));
-                            return isNaN(num) ? '0 XAF' : `${Math.round(num).toLocaleString('fr-FR')} XAF`;
-                        })(),
-                        payment: item.payment_status ?? item.order?.payment_status ?? 'UNPAID',
-                        status: item.status ?? item.order?.status ?? 'PENDING',
-                    };
-                });
-                setOrders(mappedOrders);
-
-            } catch (error) {
-                console.error("Error fetching orders:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchOrders();
-    }, []);
-
-    // Données fictives pour les statistiques
-    const stats = [
-        { label: 'Total Commandes', count: orders.length, sub: 'Toutes les commandes', type: 'primary', icon: 'ri-shopping-cart-line', filter: 'all' },
-        { label: 'En Attente', count: orders.filter(o => o.status === 'PENDING').length, sub: 'À traiter', type: 'secondary', icon: 'ri-time-line', filter: 'PENDING' },
-        { label: 'Réservées', count: orders.filter(o => o.status === 'RESERVED').length, sub: 'Produits disponibles', type: 'success', icon: 'ri-checkbox-circle-line', filter: 'RESERVED' },
-        { label: 'Pickup', count: orders.filter(o => o.status === 'IN_PICKUP').length, sub: 'En cours de remise', type: 'info', icon: 'ri-qr-scan-line', filter: 'IN_PICKUP' },
-        { label: 'Rejetées', count: orders.filter(o => o.status === 'REJECTED').length, sub: 'Refusées', type: 'danger', icon: 'ri-close-circle-line', filter: 'REJECTED' },
-    ];
-
-    const filteredOrders = orders.filter(order => {
-        const matchesSearch = order.patient.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            order.id.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesPayment = paymentFilter === 'all' || order.payment === paymentFilter;
-        const matchesStatus = deliveryFilter === 'all' || order.status === deliveryFilter;
-        return matchesSearch && matchesPayment && matchesStatus;
-    });
-
-    return (
-        <div className="page">
-            <style jsx>{`
-                .dashboard-main-card {
-                    transition: all 0.3s ease;
-                    cursor: pointer;
-                    border-left: 4px solid transparent;
-                }
-                .dashboard-main-card:hover, .dashboard-main-card.active {
-                    transform: translateY(-5px);
-                    box-shadow: 0 10px 20px rgba(0,0,0,0.05) !important;
-                }
-                .dashboard-main-card.active {
-                    border-left-width: 6px;
-                }
-                .dashboard-main-card.primary { border-left-color: #3ab047; }
-                .dashboard-main-card.secondary { border-left-color: #6c757d; }
-                .dashboard-main-card.success { border-left-color: #21ba45; }
-                .dashboard-main-card.danger { border-left-color: #db2828; }
-                
-                .stat-icon {
-                    width: 48px;
-                    height: 48px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    border-radius: 12px;
-                    font-size: 24px;
-                }
-                .bg-primary-transparent { background: rgba(58, 176, 71, 0.1); color: #3ab047; }
-                .bg-secondary-transparent { background: rgba(108, 117, 125, 0.1); color: #6c757d; }
-                .bg-success-transparent { background: rgba(33, 186, 69, 0.1); color: #21ba45; }
-                .bg-danger-transparent { background: rgba(219, 40, 40, 0.1); color: #db2828; }
-
-                .order-table th {
-                    background-color: #f8f9fa;
-                    font-weight: 600;
-                    color: #495057;
-                }
-                .badge-paid { background: #e6f4ea; color: #1e7e34; }
-                .badge-unpaid { background: #fff4e5; color: #b7791f; }
-            `}</style>
-
-            <Header />
-            <Sidebar />
-
-            <main className="main-content app-content">
-                <div className="container-fluid page-container main-body-container">
-
-
-
-                    {/* Breadcrumb */}
-                    <div className="page-header-breadcrumb mb-4">
-                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                            <div>
-                                <h1 className="page-title fw-semibold fs-18 mb-1">Tableau de Bord des Commandes</h1>
-                                <ol className="breadcrumb mb-0">
-                                    <li className="breadcrumb-item"><Link href="/">Accueil</Link></li>
-                                    <li className="breadcrumb-item">Pharmacie</li>
-                                    <li className="breadcrumb-item active">Commandes</li>
-                                </ol>
-                            </div>
-                            <Link href="/pickup" className="btn btn-outline-success btn-sm d-flex align-items-center gap-2">
-                                <i className="ri-qr-scan-line"></i>
-                                Pickups &amp; Livraisons
-                            </Link>
-                        </div>
-                    </div>
-
-                    {/* Stats Cards */}
-                    <div className="row mb-4">
-                        {stats.map((stat, idx) => (
-                            <div key={idx} className="col-xl-2 col-lg-4 col-md-6 col-sm-6 mb-3">
-                                <div
-                                    className={`card custom-card dashboard-main-card h-100 border-0 shadow-sm ${stat.type} ${deliveryFilter === stat.filter ? 'active' : ''}`}
-                                    onClick={() => setDeliveryFilter(stat.filter)}
-                                >
-                                    <div className="card-body p-3">
-                                        <div className="d-flex align-items-center gap-3">
-                                            <div className={`stat-icon bg-${stat.type}-transparent`}>
-                                                <i className={stat.icon}></i>
-                                            </div>
-                                            <div className="flex-fill">
-                                                <span className="fs-12 text-muted d-block mb-1">{stat.label}</span>
-                                                <h4 className="fw-bold mb-0 lh-1">{stat.count}</h4>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Filters & Table */}
-                    <div className="row">
-                        <div className="col-xl-12">
-                            <div className="card custom-card border-0 shadow-sm">
-                                <div className="card-header d-flex flex-wrap align-items-center justify-content-between gap-3 p-4">
-                                    <div className="search-box" style={{ maxWidth: '300px', flex: '1' }}>
-                                        <div className="input-group">
-                                            <span className="input-group-text bg-light border-0"><i className="ri-search-line"></i></span>
-                                            <input
-                                                type="text"
-                                                className="form-control border-0 bg-light"
-                                                placeholder="Rechercher une commande..."
-                                                value={searchTerm}
-                                                onChange={(e) => setSearchTerm(e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="d-flex gap-2 flex-wrap align-items-center">
-                                        <select
-                                            className="form-select border-light w-auto"
-                                            value={paymentFilter}
-                                            onChange={(e) => setPaymentFilter(e.target.value)}
-                                        >
-                                            <option value="all">Tous les paiements</option>
-                                            <option value="PAID">Payé</option>
-                                            <option value="UNPAID">Non payé</option>
-                                        </select>
-
-                                        <select
-                                            className="form-select border-light w-auto"
-                                            value={deliveryFilter}
-                                            onChange={(e) => setDeliveryFilter(e.target.value)}
-                                        >
-                                            <option value="all">Tous les statuts</option>
-                                            <option value="PENDING">En attente</option>
-                                            <option value="RESERVED">Réservée</option>
-                                            <option value="IN_PICKUP">Pickup</option>
-                                            <option value="REJECTED">Rejetée</option>
-                                        </select>
-
-                                        <button className="btn btn-primary d-flex align-items-center gap-2" style={{ backgroundColor: '#3ab047', borderColor: '#3ab047' }}>
-                                            <i className="ri-download-2-line"></i> Export
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="card-body p-0">
-                                    <div className="table-responsive">
-                                        <table className="table order-table table-hover mb-0 align-middle">
-                                            <thead>
-                                                <tr>
-                                                    <th className="ps-4">ID Commande</th>
-                                                    <th>Patient</th>
-                                                    <th>Date</th>
-                                                    <th>Total</th>
-                                                    <th>Paiement</th>
-                                                    <th>Statut</th>
-                                                    <th className="text-end pe-4">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {isLoading ? (
-                                                    <tr>
-                                                        <td colSpan={7} className="text-center py-5">
-                                                            <div className="spinner-border text-primary" role="status">
-                                                                <span className="visually-hidden">Chargement...</span>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ) : filteredOrders.length > 0 ? (
-                                                    filteredOrders.map((order, idx) => (
-                                                        <tr key={idx}>
-                                                            <td className="ps-4 fw-medium text-primary">{order.id}</td>
-                                                            <td>{order.patient}</td>
-                                                            <td className="text-muted">{order.date}</td>
-                                                            <td className="fw-semibold">{order.total}</td>
-                                                            <td>
-                                                                <span className={`badge rounded-pill ${order.payment === 'PAID' ? 'badge-paid' : 'badge-unpaid'}`}>
-                                                                    {order.payment === 'PAID' ? 'Payé' : 'Non payé'}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <span className={`badge ${order.status === 'RESERVED' ? 'bg-success' :
-                                                                        order.status === 'PENDING' ? 'bg-warning' :
-                                                                            order.status === 'IN_PICKUP' ? 'bg-info' :
-                                                                                order.status === 'REJECTED' ? 'bg-danger' :
-                                                                                    'bg-secondary'
-                                                                    } bg-opacity-10 text-${order.status === 'RESERVED' ? 'success' :
-                                                                        order.status === 'PENDING' ? 'warning' :
-                                                                            order.status === 'IN_PICKUP' ? 'info' :
-                                                                                order.status === 'REJECTED' ? 'danger' :
-                                                                                    'secondary'
-                                                                    }`}>
-                                                                    {order.status === 'IN_PICKUP' ? 'Pickup' : order.status}
-                                                                </span>
-                                                            </td>
-                                                            <td className="text-end pe-4">
-                                                                <Link href={`/order-details/${order.id.replace('#', '')}`} className="btn btn-icon btn-sm btn-light-transparent rounded-pill me-1" title="Voir détails">
-                                                                    <i className="ri-eye-line"></i>
-                                                                </Link>
-                                                                {(order.status === 'RESERVED' || order.status === 'IN_PICKUP') && (
-                                                                    <Link href="/pickup" className="btn btn-icon btn-sm btn-light-transparent rounded-pill text-success me-1" title="Gérer pickup">
-                                                                        <i className="ri-qr-scan-line"></i>
-                                                                    </Link>
-                                                                )}
-                                                                <button className="btn btn-icon btn-sm btn-light-transparent rounded-pill text-info" title="Imprimer">
-                                                                    <i className="ri-printer-line"></i>
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))
-                                                ) : (
-                                                    <tr>
-                                                        <td colSpan={7} className="text-center py-5">
-                                                            <div className="text-muted">
-                                                                <i className="ri-search-line fs-24 d-block mb-2"></i>
-                                                                Aucune commande ne correspond à vos critères.
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div className="card-footer p-3 border-top-0">
-                                    <nav aria-label="Page navigation">
-                                        <ul className="pagination justify-content-end mb-0">
-                                            <li className="page-item disabled"><a className="page-link shadow-none" href="#">Précédent</a></li>
-                                            <li className="page-item active"><a className="page-link shadow-none" href="#" style={{ backgroundColor: '#3ab047', borderColor: '#3ab047' }}>1</a></li>
-                                            <li className="page-item"><a className="page-link shadow-none" href="#">Suivant</a></li>
-                                        </ul>
-                                    </nav>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
-
-            <Footer />
+/* ── stat card ── */
+interface StatCardProps {
+  label: string;
+  count: number;
+  icon: React.ElementType;
+  color: string;
+  active: boolean;
+  onClick: () => void;
+}
+function StatCard({ label, count, icon: Icon, color, active, onClick }: StatCardProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left p-4 rounded-xl border transition-all ${
+        active
+          ? "border-[#22C55E] bg-[#F0FDF4] shadow-sm"
+          : "border-[#E2E8F0] bg-white hover:border-[#22C55E] hover:shadow-sm"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+          <Icon size={18} />
         </div>
-    );
+        <div>
+          <p className="text-[12px] text-[#94A3B8] font-medium">{label}</p>
+          <p className="text-[22px] font-bold text-[#1E293B] leading-tight">{count}</p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/* ── main page ── */
+export default function OrdersPage() {
+  const [orders, setOrders] = useState<OrderUI[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
+
+    try {
+      const raw = await api.getAllPharmacyOrders();
+
+      const mapped: OrderUI[] = raw.map((item) => {
+        const patient = item.patient ?? item.order?.patient;
+        const patientName = patient
+          ? `${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim() || "Client"
+          : "Client";
+
+        return {
+          id: item.id,
+          patient: patientName,
+          date: fmtDate(item.created_at ?? item.order?.created_at),
+          total: fmt(item.total_amount ?? item.order?.total_amount),
+          payment: item.payment_status ?? item.order?.payment_status ?? "UNPAID",
+          status: item.status ?? item.order?.status ?? "PENDING",
+        };
+      });
+
+      setOrders(mapped);
+      setLastRefresh(new Date());
+    } catch {
+      // Silencieux — erreur réseau ou serveur temporairement indisponible
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  /* initial load */
+  useEffect(() => {
+    fetchOrders(false);
+  }, [fetchOrders]);
+
+  /* polling every 30 s */
+  useEffect(() => {
+    const interval = setInterval(() => fetchOrders(true), 30_000);
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
+
+  /* derived stats */
+  const stats = [
+    { key: "all",        label: "Toutes",      count: orders.length,                                                                                icon: ClipboardList, color: "bg-[#F0FDF4] text-[#22C55E]" },
+    { key: "PENDING",    label: "En attente",  count: orders.filter((o) => o.status === "PENDING").length,                                         icon: Clock,         color: "bg-orange-50 text-orange-500" },
+    { key: "ACCEPTED",   label: "Acceptées",   count: orders.filter((o) => o.status === "ACCEPTED" || o.status === "RESERVED").length,              icon: CheckCircle2,  color: "bg-green-50 text-green-600" },
+    { key: "IN_PICKUP",  label: "Prêt collecte", count: orders.filter((o) => o.status === "IN_PICKUP").length,                                     icon: PackageCheck,  color: "bg-blue-50 text-blue-600" },
+    { key: "IN_DELIVERY",label: "En livraison", count: orders.filter((o) => o.status === "IN_DELIVERY").length,                                    icon: Truck,         color: "bg-purple-50 text-purple-600" },
+    { key: "REJECTED",   label: "Rejetées",    count: orders.filter((o) => o.status === "REJECTED" || o.status === "CANCELLED").length,             icon: XCircle,       color: "bg-red-50 text-red-500" },
+  ];
+
+  const filtered = orders.filter((o) => {
+    const q = searchTerm.toLowerCase();
+    const matchSearch = o.patient.toLowerCase().includes(q) || o.id.toLowerCase().includes(q);
+    // ACCEPTED regroupe ACCEPTED et RESERVED (même statut côté backend selon version)
+    const matchStatus =
+      statusFilter === "all" ||
+      (statusFilter === "ACCEPTED" && (o.status === "ACCEPTED" || o.status === "RESERVED")) ||
+      (statusFilter === "REJECTED" && (o.status === "REJECTED" || o.status === "CANCELLED")) ||
+      (statusFilter !== "ACCEPTED" && statusFilter !== "REJECTED" && o.status === statusFilter);
+    const matchPayment = paymentFilter === "all" || o.payment === paymentFilter;
+    return matchSearch && matchStatus && matchPayment;
+  });
+
+  return (
+    <DashboardLayout title="Commandes">
+      <div className="space-y-5 animate-fade-in-up">
+
+        {/* ── Header row ── */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-[18px] font-semibold text-[#1E293B]">Tableau de bord</h2>
+            {lastRefresh && (
+              <p className="text-[12px] text-[#94A3B8] mt-0.5">
+                Dernière mise à jour : {lastRefresh.toLocaleTimeString("fr-FR")}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => fetchOrders(true)}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[#22C55E] border border-[#22C55E] rounded-xl hover:bg-[#F0FDF4] transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
+            Actualiser
+          </button>
+        </div>
+
+        {/* ── Stat cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {stats.map((s) => (
+            <StatCard
+              key={s.key}
+              label={s.label}
+              count={s.count}
+              icon={s.icon}
+              color={s.color}
+              active={statusFilter === s.key}
+              onClick={() => setStatusFilter(s.key)}
+            />
+          ))}
+        </div>
+
+        {/* ── Table card ── */}
+        <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+          {/* Filters */}
+          <div className="p-4 border-b border-[#E2E8F0] flex flex-wrap gap-3 items-center">
+            {/* Search */}
+            <div className="relative flex-1 min-w-48">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+              <input
+                type="text"
+                placeholder="Rechercher un patient, ID…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
+              />
+            </div>
+
+            {/* Payment filter */}
+            <select
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              className="px-3 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] cursor-pointer"
+            >
+              <option value="all">Tous les paiements</option>
+              <option value="PAID">Payé</option>
+              <option value="UNPAID">Non payé</option>
+            </select>
+
+            {/* Status filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] cursor-pointer"
+            >
+              <option value="all">Tous les statuts</option>
+              <option value="PENDING">En attente</option>
+              <option value="ACCEPTED">Acceptée</option>
+              <option value="IN_PICKUP">Prêt collecte</option>
+              <option value="IN_DELIVERY">En livraison</option>
+              <option value="REJECTED">Rejetée / Annulée</option>
+            </select>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    ID Commande
+                  </th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Patient
+                  </th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Date
+                  </th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Total
+                  </th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Paiement
+                  </th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Statut
+                  </th>
+                  <th className="text-right px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F1F5F9]">
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-16">
+                      <ClipboardList size={32} className="text-[#E2E8F0] mx-auto mb-3" />
+                      <p className="text-[14px] font-medium text-[#94A3B8]">
+                        {orders.length === 0 ? "Aucune commande" : "Aucun résultat"}
+                      </p>
+                      {orders.length === 0 && (
+                        <p className="text-[12px] text-[#94A3B8] mt-1">
+                          Les nouvelles commandes apparaîtront ici automatiquement.
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((order) => (
+                    <tr key={order.id} className="hover:bg-[#F8FAFC] transition-colors">
+                      <td className="px-4 py-3.5">
+                        <span className="font-mono text-[12px] text-[#22C55E] font-semibold">
+                          #{order.id.slice(0, 8)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 font-medium text-[#1E293B]">
+                        {order.patient}
+                      </td>
+                      <td className="px-4 py-3.5 text-[#64748B]">{order.date}</td>
+                      <td className="px-4 py-3.5 font-semibold text-[#1E293B]">
+                        {order.total}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <StatusBadge status={order.payment} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <StatusBadge status={order.status} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            href={`/order-details/${order.id}`}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#94A3B8] hover:bg-[#F0FDF4] hover:text-[#22C55E] transition-colors"
+                            title="Voir les détails"
+                          >
+                            <Eye size={15} />
+                          </Link>
+                          {(order.status === "ACCEPTED" || order.status === "RESERVED" || order.status === "IN_PICKUP") && (
+                            <Link
+                              href={`/order-details/${order.id}`}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-[#94A3B8] hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              title="Scanner QR pickup"
+                            >
+                              <QrCode size={15} />
+                            </Link>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer */}
+          {!isLoading && filtered.length > 0 && (
+            <div className="px-4 py-3 border-t border-[#E2E8F0] text-[12px] text-[#94A3B8]">
+              {filtered.length} commande{filtered.length > 1 ? "s" : ""}{" "}
+              {statusFilter !== "all" || paymentFilter !== "all" || searchTerm
+                ? "filtrée" + (filtered.length > 1 ? "s" : "")
+                : "au total"}
+            </div>
+          )}
+        </div>
+      </div>
+    </DashboardLayout>
+  );
 }

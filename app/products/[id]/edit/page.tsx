@@ -1,93 +1,250 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Header from '@/components/layout/Header';
-import Sidebar from '@/components/layout/Sidebar';
-import Footer from '@/components/layout/Footer';
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  Package,
+  Tag,
+  Image as ImageIcon,
+  RefreshCw,
+  FlaskConical,
+  Boxes,
+} from 'lucide-react';
 import { api } from '@/lib/api-client';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 
+/* ─── helpers ─── */
+function Field({
+  label,
+  required,
+  hint,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-[13px] font-semibold text-[#1E293B]">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      {children}
+      {hint && <p className="text-[11px] text-[#94A3B8]">{hint}</p>}
+    </div>
+  );
+}
+
+function Input({
+  type = 'text',
+  value,
+  onChange,
+  placeholder,
+  min,
+  step,
+  disabled,
+  required,
+  name,
+}: {
+  type?: string;
+  value: string | number;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  min?: string;
+  step?: string;
+  disabled?: boolean;
+  required?: boolean;
+  name?: string;
+}) {
+  return (
+    <input
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      min={min}
+      step={step}
+      disabled={disabled}
+      required={required}
+      className={`w-full px-3.5 py-2.5 text-[13px] border rounded-xl text-[#1E293B] transition-colors focus:outline-none ${disabled
+        ? 'bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8] cursor-not-allowed'
+        : 'bg-white border-[#E2E8F0] hover:border-[#CBD5E1] focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/20'
+        }`}
+    />
+  );
+}
+
+function SectionHeader({ icon: Icon, label, color = 'text-[#22C55E]', bg = 'bg-[#F0FDF4]' }: {
+  icon: React.ElementType;
+  label: string;
+  color?: string;
+  bg?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 pb-3 border-b border-[#E2E8F0]">
+      <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+        <Icon size={16} className={color} />
+      </div>
+      <h3 className="text-[14px] font-semibold text-[#1E293B]">{label}</h3>
+    </div>
+  );
+}
+
+/* ─── page ─── */
 export default function EditProductPage() {
-  const params = useParams();
+  const { id } = useParams();
   const router = useRouter();
-  const productPriceId = params.id as string;
+  const productPriceId = id as string;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Form fields
-  const [formData, setFormData] = useState({
-    productName: '',
+  // Raw data (garder les IDs nécessaires)
+  const [rawData, setRawData] = useState<Record<string, unknown> | null>(null);
+  const [lotId, setLotId] = useState<string | null>(null);
+
+  // Infos produit
+  const [productForm, setProductForm] = useState({
+    name: '',
     dci: '',
     dosage: '',
-    galenic: '',
-    salePriceValue: '',
+  });
+
+  // Prix & devise  
+  const [priceForm, setPriceForm] = useState({
+    sale_price: '',
     currency: 'XAF',
   });
+
+  // Stock / lot
+  const [stockForm, setStockForm] = useState({
+    quantity: '',
+    purchase_price: '',
+    expiration_date: '',
+    batch_number: '',
+  });
+
+  // Image
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
 
-  // Raw data from API (to preserve IDs we don't edit)
-  const [rawData, setRawData] = useState<Record<string, unknown> | null>(null);
-
-  useEffect(() => {
-    if (productPriceId) {
-      loadProduct();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productPriceId]);
-
-  const loadProduct = async () => {
+  /* ─── chargement ─── */
+  const loadProduct = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-
-      // Use getProductPrice instead of getLotById
-      const response = await api.getProductPrice(productPriceId);
-      const data = response as Record<string, unknown>;
+      // Charger les infos product-price (prix + produit embarqué)
+      const data = await api.getProductPrice(productPriceId) as Record<string, unknown>;
       setRawData(data);
 
-      const nestedProduct = data.product as Record<string, unknown> | undefined;
+      const product = data.product as Record<string, unknown> | undefined;
+      const internalProductId = product?.id ? String(product.id) : null;
 
-      setFormData({
-        productName: (nestedProduct?.name as string) || '',
-        dci: (nestedProduct?.dci as string) || '',
-        dosage: (nestedProduct?.dosage as string) || '',
-        galenic: (nestedProduct?.galenic as string) || '',
-        salePriceValue: (data.sale_price as string) || '',
+      setProductForm({
+        name: (product?.name as string) || '',
+        dci: (product?.dci as string) || '',
+        dosage: (product?.dosage as string) || '',
+      });
+
+      setPriceForm({
+        sale_price: String(data.sale_price ?? ''),
         currency: (data.currency as string) || 'XAF',
       });
-      setCurrentImageUrl((nestedProduct?.image as string) || null);
-      setImagePreview((nestedProduct?.image as string) || null);
-    } catch (err: unknown) {
-      const error = err as Error;
-      console.error('Error loading product:', error);
-      setError(error.message || 'Erreur lors du chargement du produit.');
+
+      setImagePreview((product?.image as string) || null);
+
+      // ── Chercher le lot dans toutes les positions possibles ──
+      // L'API peut l'emboîter à différents endroits selon la version du backend
+      const lotCandidates: (Record<string, unknown> | undefined)[] = [
+        data.lot as Record<string, unknown> | undefined,
+        Array.isArray(data.lots) ? (data.lots as Record<string, unknown>[])[0] : undefined,
+        data.stock as Record<string, unknown> | undefined,
+        data.stock_lot as Record<string, unknown> | undefined,
+        product?.lot as Record<string, unknown> | undefined,
+        Array.isArray(product?.lots) ? (product?.lots as Record<string, unknown>[])[0] : undefined,
+      ];
+
+      const embeddedLot = lotCandidates.find((c) => c && c.id != null);
+
+      if (embeddedLot) {
+        setLotId(String(embeddedLot.id));
+        setStockForm({
+          quantity: String(embeddedLot.quantity ?? ''),
+          purchase_price: String(embeddedLot.purchase_price ?? ''),
+          expiration_date: String(embeddedLot.expiration_date ?? ''),
+          batch_number: String(embeddedLot.batch_number ?? ''),
+        });
+      } else {
+        // Aucun lot embarqué → essayer getLotById avec l'ID du produit interne,
+        // puis avec l'ID du product-price en dernier recours
+        const idsToTry = [internalProductId, productPriceId].filter(Boolean) as string[];
+        let resolved = false;
+
+        for (const tryId of idsToTry) {
+          try {
+            const lotData = await api.getLotById(tryId) as Record<string, unknown>;
+            if (lotData?.id) {
+              setLotId(String(lotData.id));
+              setStockForm({
+                quantity: String(lotData.quantity ?? ''),
+                purchase_price: String(lotData.purchase_price ?? ''),
+                expiration_date: String(lotData.expiration_date ?? ''),
+                batch_number: String(lotData.batch_number ?? ''),
+              });
+              resolved = true;
+              break; // On a trouvé un lot, on arrête
+            }
+          } catch {
+            // try next ID
+          }
+        }
+
+        if (!resolved) {
+          // Dernier essai : stock directement sur le product
+          const stockQty =
+            (product?.stock as string | number | undefined) ??
+            (product?.quantity as string | number | undefined);
+
+          if (stockQty != null) {
+            setStockForm((prev) => ({ ...prev, quantity: String(stockQty) }));
+          }
+          // lotId reste null → champs stock affichés avec valeurs lues mais désactivés pour la sauvegarde
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors du chargement du produit.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [productPriceId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
 
+  useEffect(() => {
+    loadProduct();
+  }, [loadProduct]);
+
+  /* ─── image ─── */
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    setSelectedImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
+  /* ─── sauvegarde ─── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -97,304 +254,319 @@ export default function EditProductPage() {
     try {
       const parentProduct = rawData?.product as Record<string, unknown> | undefined;
 
-      // Build update payload using FormData for image support
+      // 1. Mettre à jour product-price (prix + infos produit)
       const formDataPayload = new FormData();
-      formDataPayload.append('sale_price', formData.salePriceValue);
-      formDataPayload.append('currency', formData.currency);
-      
-      // We send the product data as a JSON string for the nested object if using application/json
-      // BUT for multipart/form-data with DRF and nested serializers, it's often better to prefix
-      // However, ApiClient expects a FormData object. 
-      // Let's structure the product fields as keys
-      formDataPayload.append('product[id]', String(parentProduct?.id));
-      formDataPayload.append('product[name]', formData.productName);
-      formDataPayload.append('product[dci]', formData.dci);
-      formDataPayload.append('product[dosage]', formData.dosage);
-      formDataPayload.append('product[galenic]', formData.galenic);
-      
+      formDataPayload.append('sale_price', priceForm.sale_price);
+      formDataPayload.append('currency', priceForm.currency);
+
+      if (parentProduct?.id) {
+        formDataPayload.append('product[id]', String(parentProduct.id));
+        formDataPayload.append('product[name]', productForm.name);
+        formDataPayload.append('product[dci]', productForm.dci);
+        formDataPayload.append('product[dosage]', productForm.dosage);
+      }
+
       if (selectedImage) {
         formDataPayload.append('product[image]', selectedImage);
       }
 
       await api.updateProductPrice(productPriceId, formDataPayload);
+
+      // 2. Mettre à jour le lot si stock renseigné
+      if (lotId && stockForm.quantity) {
+        try {
+          await api.updateProduct(lotId, {
+            quantity: parseFloat(stockForm.quantity),
+            ...(stockForm.purchase_price ? { purchase_price: parseFloat(stockForm.purchase_price) } : {}),
+            ...(stockForm.expiration_date ? { expiration_date: stockForm.expiration_date } : {}),
+            ...(stockForm.batch_number ? { batch_number: stockForm.batch_number } : {}),
+          });
+        } catch {
+          // Erreur non-bloquante sur le lot
+        }
+      }
+
       setSuccess('Produit mis à jour avec succès !');
-      
-      // Redirect after short delay
-      setTimeout(() => router.push('/products'), 1500);
-    } catch (err: unknown) {
-      const error = err as Error;
-      console.error('Error updating product:', error);
-      setError(error.message || 'Erreur lors de la mise à jour du produit.');
+      setTimeout(() => router.push('/products_list'), 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour du produit.');
     } finally {
       setSaving(false);
     }
   };
 
+  /* ─── loading ─── */
+  if (loading) {
+    return (
+      <DashboardLayout title="Modifier le produit">
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-[#F0FDF4] flex items-center justify-center">
+            <Loader2 size={28} className="animate-spin text-[#22C55E]" />
+          </div>
+          <p className="text-[14px] text-[#94A3B8]">Chargement du produit…</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <div className="page">
-      <Header />
-      <Sidebar />
+    <DashboardLayout title="Modifier le produit">
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-5 animate-fade-in-up max-w-3xl mx-auto">
 
-      <div className="main-content app-content">
-        <div className="container-fluid page-container main-body-container">
+          {/* ── Top bar ── */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => router.push('/products_list')}
+                className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#E2E8F0] text-[#94A3B8] hover:text-[#1E293B] hover:border-[#1E293B] transition-colors"
+              >
+                <ArrowLeft size={16} />
+              </button>
+              <div>
+                <h2 className="text-[16px] font-semibold text-[#1E293B]">
+                  Modifier le produit
+                </h2>
+                <nav className="flex items-center gap-1 text-[12px] text-[#94A3B8] mt-0.5">
+                  <Link href="/products_list" className="hover:text-[#22C55E]">Produits</Link>
+                  <span>/</span>
+                  <span>Modification</span>
+                </nav>
+              </div>
+            </div>
 
-          {/* Page Header */}
-          <div className="page-header-breadcrumb mb-3">
-            <div className="d-flex align-center justify-content-between flex-wrap">
-              <h1 className="page-title fw-medium fs-18 mb-0">Modifier le Produit</h1>
-              <ol className="breadcrumb mb-0">
-                <li className="breadcrumb-item"><Link href="/">Accueil</Link></li>
-                <li className="breadcrumb-item"><Link href="/products_list">Produits</Link></li>
-                <li className="breadcrumb-item active" aria-current="page">Modifier</li>
-              </ol>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={loadProduct}
+                className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#E2E8F0] text-[#94A3B8] hover:text-[#22C55E] hover:border-[#22C55E] transition-colors"
+                title="Recharger"
+              >
+                <RefreshCw size={15} />
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold bg-[#22C55E] hover:bg-[#16A34A] text-white transition-colors disabled:opacity-50 shadow-lg shadow-green-200"
+              >
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
             </div>
           </div>
 
-          {/* Messages */}
+          {/* ── Alertes ── */}
           {error && (
-            <div className="alert alert-danger alert-dismissible fade show" role="alert">
-              <i className="ri-error-warning-line me-2"></i>
-              {error}
-              <button type="button" className="btn-close" onClick={() => setError(null)} aria-label="Close"></button>
+            <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl text-[13px] text-red-700">
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{error}</span>
+              <button type="button" onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-700">✕</button>
             </div>
           )}
           {success && (
-            <div className="alert alert-success alert-dismissible fade show" role="alert">
-              <i className="ri-check-double-line me-2"></i>
-              {success}
-              <button type="button" className="btn-close" onClick={() => setSuccess(null)} aria-label="Close"></button>
+            <div className="flex items-center gap-3 px-4 py-3 bg-[#F0FDF4] border border-green-200 rounded-2xl text-[13px] text-[#16A34A]">
+              <CheckCircle2 size={16} className="shrink-0" />
+              <span>{success}</span>
             </div>
           )}
 
-          {loading ? (
-            <div className="card custom-card">
-              <div className="card-body text-center py-5">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Chargement...</span>
-                </div>
-                <p className="text-muted mt-3">Chargement des données du produit...</p>
+          {/* ═══════════════════════════ */}
+          {/* A. IMAGE + INFOS PRODUIT    */}
+          {/* ═══════════════════════════ */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-5">
+            <SectionHeader icon={Package} label="Informations du produit" />
+
+            {/* Image */}
+            <div className="flex items-start gap-5">
+              {/* Aperçu */}
+              <button
+                type="button"
+                onClick={() => document.getElementById('image-upload')?.click()}
+                className="w-24 h-24 rounded-2xl border-2 border-dashed border-[#E2E8F0] hover:border-[#22C55E] hover:bg-[#F0FDF4] transition-colors flex items-center justify-center shrink-0 overflow-hidden"
+              >
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imagePreview} alt="Aperçu" className="w-full h-full object-cover rounded-2xl" />
+                ) : (
+                  <ImageIcon size={28} className="text-[#CBD5E1]" />
+                )}
+              </button>
+              <div className="flex-1 space-y-1.5">
+                <label className="block text-[13px] font-semibold text-[#1E293B]">
+                  Image du produit
+                </label>
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('image-upload')?.click()}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-medium border border-[#E2E8F0] rounded-xl text-[#64748B] hover:border-[#22C55E] hover:text-[#22C55E] transition-colors"
+                >
+                  <ImageIcon size={14} />
+                  {imagePreview ? 'Changer l\'image' : 'Ajouter une image'}
+                </button>
+                <p className="text-[11px] text-[#94A3B8]">
+                  Cliquez sur l&apos;aperçu ou le bouton pour choisir une image (JPG, PNG…)
+                </p>
               </div>
             </div>
-          ) : (
-            <div className="row">
-              <div className="col-xl-8 mx-auto">
-                <div className="card custom-card">
-                  <div className="card-header d-flex align-items-center justify-content-between">
-                    <div className="card-title">Informations du Produit</div>
-                    <Link href="/products_list" className="btn btn-sm btn-outline-secondary">
-                      <i className="ri-arrow-left-line me-1"></i>Retour
-                    </Link>
-                  </div>
-                  <div className="card-body">
-                    <form onSubmit={handleSubmit}>
 
-                      {/* Image Upload */}
-                      <div className="row mb-4 align-items-center">
-                        <label className="col-sm-3 col-form-label fw-medium">
-                          Image du Produit
-                        </label>
-                        <div className="col-sm-9">
-                          <div className="d-flex align-items-center gap-3">
-                            <div 
-                              className="rounded-3 border d-flex align-items-center justify-content-center bg-light overflow-hidden" 
-                              style={{ width: '100px', height: '100px', cursor: 'pointer' }}
-                              onClick={() => document.getElementById('image-upload')?.click()}
-                            >
-                              {/* imagePreview may be a blob URL (local file) or a server URL.
-                                  We use plain img for both since next/image doesn't support blob: URLs */}
-                              {/* eslint-disable @next/next/no-img-element */}
-                              {imagePreview ? (
-                                <img src={imagePreview} alt="Aperçu" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              ) : (
-                                <i className="ri-image-add-line fs-32 text-muted"></i>
-                              )}
-                              {/* eslint-enable @next/next/no-img-element */}
-                            </div>
-                            <div className="flex-fill">
-                              <input 
-                                type="file" 
-                                className="form-control" 
-                                id="image-upload" 
-                                accept="image/*"
-                                onChange={handleImageChange}
-                              />
-                              <div className="form-text fs-12 mt-1">
-                                {currentImageUrl ? 'Changez l\'image du produit.' : 'Ajoutez une image pour ce produit.'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+            {/* Nom & DCI & Dosage */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <Field label="Nom du produit" required>
+                  <Input
+                    name="name"
+                    value={productForm.name}
+                    onChange={(e) => setProductForm(p => ({ ...p, name: e.target.value }))}
+                    placeholder="Ex : Paracétamol"
+                    required
+                  />
+                </Field>
+              </div>
+              <Field label="DCI (Dénomination Commune Internationale)">
+                <Input
+                  name="dci"
+                  value={productForm.dci}
+                  onChange={(e) => setProductForm(p => ({ ...p, dci: e.target.value }))}
+                  placeholder="Ex : Paracétamol"
+                />
+              </Field>
+              <Field label="Dosage">
+                <Input
+                  name="dosage"
+                  value={productForm.dosage}
+                  onChange={(e) => setProductForm(p => ({ ...p, dosage: e.target.value }))}
+                  placeholder="Ex : 500 mg"
+                />
+              </Field>
+            </div>
+          </div>
 
-                      {/* Product Name */}
-                      <div className="row mb-3">
-                        <label htmlFor="productName" className="col-sm-3 col-form-label fw-medium">
-                          Nom du Produit <span className="text-danger">*</span>
-                        </label>
-                        <div className="col-sm-9">
-                          <input
-                            type="text"
-                            className="form-control"
-                            id="productName"
-                            name="productName"
-                            value={formData.productName}
-                            onChange={handleChange}
-                            required
-                            placeholder="Ex: Paracetamol"
-                          />
-                        </div>
-                      </div>
+          {/* ═══════════════════════════ */}
+          {/* B. PRIX DE VENTE            */}
+          {/* ═══════════════════════════ */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4">
+            <SectionHeader icon={Tag} label="Prix de vente" color="text-purple-500" bg="bg-purple-50" />
 
-                      {/* DCI */}
-                      <div className="row mb-3">
-                        <label htmlFor="dci" className="col-sm-3 col-form-label fw-medium">
-                          DCI
-                        </label>
-                        <div className="col-sm-9">
-                          <input
-                            type="text"
-                            className="form-control"
-                            id="dci"
-                            name="dci"
-                            value={formData.dci}
-                            onChange={handleChange}
-                            placeholder="Ex: Paracétamol"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Dosage */}
-                      <div className="row mb-3">
-                        <label htmlFor="dosage" className="col-sm-3 col-form-label fw-medium">
-                          Dosage
-                        </label>
-                        <div className="col-sm-9">
-                          <input
-                            type="text"
-                            className="form-control"
-                            id="dosage"
-                            name="dosage"
-                            value={formData.dosage}
-                            onChange={handleChange}
-                            placeholder="Ex: 500mg"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Galenic Form */}
-                      <div className="row mb-3">
-                        <label htmlFor="galenic" className="col-sm-3 col-form-label fw-medium">
-                          Forme Galénique
-                        </label>
-                        <div className="col-sm-9">
-                          <input
-                            type="text"
-                            className="form-control"
-                            id="galenic"
-                            name="galenic"
-                            value={formData.galenic}
-                            onChange={handleChange}
-                            placeholder="Ex: Comprimé / Tablet"
-                          />
-                        </div>
-                      </div>
-
-                      <hr className="my-4" />
-
-                      {/* Sale Price */}
-                      <div className="row mb-3">
-                        <label htmlFor="salePriceValue" className="col-sm-3 col-form-label fw-medium">
-                          Prix de Vente <span className="text-danger">*</span>
-                        </label>
-                        <div className="col-sm-9">
-                          <div className="input-group">
-                            <input
-                              type="number"
-                              className="form-control"
-                              id="salePriceValue"
-                              name="salePriceValue"
-                              value={formData.salePriceValue}
-                              onChange={handleChange}
-                              required
-                              min="0"
-                              step="0.01"
-                              placeholder="Ex: 500"
-                            />
-                            <span className="input-group-text">{formData.currency}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Currency */}
-                      <div className="row mb-3">
-                        <label htmlFor="currency" className="col-sm-3 col-form-label fw-medium">
-                          Devise
-                        </label>
-                        <div className="col-sm-9">
-                          <select
-                            className="form-select"
-                            id="currency"
-                            name="currency"
-                            value={formData.currency}
-                            onChange={handleChange}
-                          >
-                            <option value="XAF">XAF (Franc CFA)</option>
-                            <option value="EUR">EUR (Euro)</option>
-                            <option value="USD">USD (Dollar US)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <hr className="my-4" />
-
-                      {/* Product ID (read-only info) */}
-                      <div className="row mb-3">
-                        <label className="col-sm-3 col-form-label fw-medium text-muted">
-                          ID du Lot
-                        </label>
-                        <div className="col-sm-9">
-                          <input
-                            type="text"
-                            className="form-control bg-light"
-                            value={productPriceId}
-                            disabled
-                          />
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="d-flex justify-content-end gap-2 mt-4">
-                        <Link href="/products_list" className="btn btn-outline-secondary">
-                          <i className="ri-close-line me-1"></i>Annuler
-                        </Link>
-                        <button
-                          type="submit"
-                          className="btn btn-primary"
-                          disabled={saving}
-                        >
-                          {saving ? (
-                            <>
-                              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                              Enregistrement...
-                            </>
-                          ) : (
-                            <>
-                              <i className="ri-save-line me-1"></i>Enregistrer les modifications
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </form>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Prix de vente" required>
+                <div className="flex">
+                  <input
+                    type="number"
+                    value={priceForm.sale_price}
+                    onChange={(e) => setPriceForm(p => ({ ...p, sale_price: e.target.value }))}
+                    placeholder="Ex : 500"
+                    min="0"
+                    step="1"
+                    required
+                    className="flex-1 px-3.5 py-2.5 text-[13px] border border-r-0 border-[#E2E8F0] rounded-l-xl text-[#1E293B] bg-white hover:border-[#CBD5E1] focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/20 focus:outline-none transition-colors"
+                  />
+                  <div className="flex items-center px-3.5 border border-l-0 border-[#E2E8F0] rounded-r-xl bg-[#F8FAFC] text-[13px] font-semibold text-[#64748B] shrink-0">
+                    {priceForm.currency}
                   </div>
                 </div>
-              </div>
+              </Field>
+
+              <Field label="Devise">
+                <select
+                  value={priceForm.currency}
+                  onChange={(e) => setPriceForm(p => ({ ...p, currency: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 text-[13px] border border-[#E2E8F0] rounded-xl text-[#1E293B] bg-white hover:border-[#CBD5E1] focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/20 focus:outline-none transition-colors cursor-pointer"
+                >
+                  <option value="XAF">XAF — Franc CFA</option>
+                  <option value="EUR">EUR — Euro</option>
+                  <option value="USD">USD — Dollar US</option>
+                </select>
+              </Field>
             </div>
-          )}
+          </div>
+
+          {/* ═══════════════════════════ */}
+          {/* C. STOCK / LOT              */}
+          {/* ═══════════════════════════ */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4">
+            <SectionHeader icon={Boxes} label="Stock & Lot" color="text-blue-500" bg="bg-blue-50" />
+
+            {!lotId && (
+              <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-[12px] text-amber-700">
+                <FlaskConical size={14} className="shrink-0" />
+                Aucun lot de stock trouvé pour ce produit. Vous pouvez en créer un depuis la liste des produits.
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Quantité en stock" hint={lotId ? undefined : 'Aucun lot associé'}>
+                <Input
+                  type="number"
+                  value={stockForm.quantity}
+                  onChange={(e) => setStockForm(p => ({ ...p, quantity: e.target.value }))}
+                  placeholder="Ex : 100"
+                  min="0"
+                  step="1"
+                  disabled={!lotId}
+                />
+              </Field>
+
+              <Field label="Prix d'achat (optionnel)">
+                <Input
+                  type="number"
+                  value={stockForm.purchase_price}
+                  onChange={(e) => setStockForm(p => ({ ...p, purchase_price: e.target.value }))}
+                  placeholder="Ex : 300"
+                  min="0"
+                  step="1"
+                  disabled={!lotId}
+                />
+              </Field>
+
+              <Field label="Numéro de lot">
+                <Input
+                  value={stockForm.batch_number}
+                  onChange={(e) => setStockForm(p => ({ ...p, batch_number: e.target.value }))}
+                  placeholder="Ex : LOT-2024-001"
+                  disabled={!lotId}
+                />
+              </Field>
+
+              <Field label="Date d'expiration">
+                <Input
+                  type="date"
+                  value={stockForm.expiration_date}
+                  onChange={(e) => setStockForm(p => ({ ...p, expiration_date: e.target.value }))}
+                  disabled={!lotId}
+                />
+              </Field>
+            </div>
+          </div>
+
+          {/* ── Boutons du bas ── */}
+          <div className="flex items-center justify-end gap-3 pb-4">
+            <button
+              type="button"
+              onClick={() => router.push('/products_list')}
+              className="px-5 py-2.5 rounded-xl text-[13px] font-medium border border-[#E2E8F0] text-[#94A3B8] hover:border-[#1E293B] hover:text-[#1E293B] transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-bold bg-[#22C55E] hover:bg-[#16A34A] text-white transition-colors disabled:opacity-50 shadow-lg shadow-green-200"
+            >
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {saving ? 'Enregistrement…' : 'Enregistrer les modifications'}
+            </button>
+          </div>
 
         </div>
-      </div>
-
-      <Footer />
-    </div>
+      </form>
+    </DashboardLayout>
   );
 }

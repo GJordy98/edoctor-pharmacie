@@ -23,6 +23,13 @@ import {
     SubOrderPayload,
     InvoiceResponse,
     QrCodeResponse,
+    PharmaNotification,
+    PharmaWallet,
+    PharmaTransaction,
+    PatientOrder,
+    PatientOrderItem,
+    PaymentPayload,
+    PaymentResponse,
 } from '@/lib/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -82,7 +89,7 @@ class ApiClient {
         const url = `${API_BASE_URL}${endpoint}`;
         const { requiresAuth = true, ...fetchOptions } = options;
         const isFormData = fetchOptions.body instanceof FormData;
-        
+
         const headers: Record<string, string> = {
             ...(this.getHeaders(requiresAuth) as Record<string, string>),
             ...(fetchOptions.headers as Record<string, string>),
@@ -138,15 +145,15 @@ class ApiClient {
                 const responseText = await response.text();
                 console.error(`[API] Error response body:`, responseText);
                 let errorData: Record<string, unknown> = {};
-                try { 
-                    errorData = JSON.parse(responseText); 
-                } catch { 
-                    /* not JSON */ 
+                try {
+                    errorData = JSON.parse(responseText);
+                } catch {
+                    /* not JSON */
                 }
-                
+
                 // Extract meaningful error message
                 let errorMessage = `Error ${response.status}`;
-                
+
                 if (errorData.detail) {
                     errorMessage = String(errorData.detail);
                 } else if (errorData.error) {
@@ -171,7 +178,7 @@ class ApiClient {
                 } else {
                     errorMessage = `Error ${response.status}: ${response.statusText}`;
                 }
-                
+
                 throw new Error(errorMessage);
             }
 
@@ -179,7 +186,10 @@ class ApiClient {
             const text = await response.text();
             return text ? JSON.parse(text) : {} as T;
         } catch (error) {
-            console.error('API Request Failed:', error);
+            // Ne pas loguer les erreurs réseau pures (serveur en veille, pas de connexion)
+            if (!(error instanceof TypeError)) {
+                console.error('API Request Failed:', error);
+            }
             throw error;
         }
     }
@@ -204,7 +214,7 @@ class ApiClient {
             localStorage.removeItem('account');
             localStorage.removeItem('officine');
             // Clear cookie
-            document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Lax'; 
+            document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Lax';
         }
     }
 
@@ -302,7 +312,7 @@ class ApiClient {
     public async updatePharmacy(id: string, data: Partial<Pharmacy>): Promise<Pharmacy> {
         return this.request<Pharmacy>(`/api/v1/officine/${id}/`, {
             method: 'PATCH', // Assuming PATCH for partial update, or PUT if full replacement. 
-                             // Based on user request "gestion du profil", PATCH/PUT on ID is standard.
+            // Based on user request "gestion du profil", PATCH/PUT on ID is standard.
             body: JSON.stringify(data),
             requiresAuth: true,
         });
@@ -412,7 +422,7 @@ class ApiClient {
         const url = `${API_BASE_URL}/api/v1/send-presciption-order/${officineId}/validate/`;
         const formData = new FormData();
         formData.append('prescription', prescriptionFile);
-        if (note) formData.append('note', note);
+        if (note) formData.append('medecin', note);
 
         // Don't set Content-Type manually – browser sets it with the correct boundary
         const headers: HeadersInit = {};
@@ -456,16 +466,58 @@ class ApiClient {
     /**
      * Scans a pickup QR code at the officine (pharmacist confirms handover to driver).
      * POST /api/v1/scan-qrcode-pickup/
+     * Sends multipart/form-data so the package photo can be attached.
      */
-    public async scanQrCodePickup(data: { qr_code: string }): Promise<unknown> {
-        return this.request('/api/v1/scan-qrcode-pickup/', {
-            method: 'POST',
-            body: JSON.stringify(data),
-            requiresAuth: true,
-        });
+    public async scanQrCodePickup(
+        rawQrValue: string,
+        options?: { missionCode?: string; packagePhoto?: File }
+    ): Promise<unknown> {
+        const formData = new FormData();
+
+        // Parse QR value and append fields
+        try {
+            const parsed = JSON.parse(rawQrValue);
+            if (parsed.pickup_id) formData.append('pickup_id', String(parsed.pickup_id));
+            if (parsed.officine_order_id) formData.append('officine_order_id', String(parsed.officine_order_id));
+            if (parsed.ts) formData.append('ts', String(parsed.ts));
+            if (parsed.driver) formData.append('driver', String(parsed.driver));
+        } catch {
+            // Fallback: send raw QR value
+            formData.append('qr_code', rawQrValue);
+        }
+
+        // Code de mission du livreur
+        if (options?.missionCode?.trim()) {
+            formData.append('mission_code', options.missionCode.trim());
+        }
+
+        // Photo/vidéo du colis
+        if (options?.packagePhoto) {
+            formData.append('package_photo', options.packagePhoto, options.packagePhoto.name);
+        }
+
+        const url = `${API_BASE_URL}/api/v1/scan-qrcode-pickup/`;
+        const headers: HeadersInit = {};
+        if (this.accessToken) {
+            headers['Authorization'] = `Bearer ${this.accessToken}`;
+        }
+        console.log(`[API] POST ${url} (multipart)`);
+        const response = await fetch(url, { method: 'POST', headers, body: formData });
+
+        if (!response.ok) {
+            const text = await response.text();
+            let errData: Record<string, unknown> = {};
+            try { errData = JSON.parse(text); } catch { /* not JSON */ }
+            const msg = String(
+                errData.detail ?? errData.error ?? errData.message ?? `Erreur ${response.status}`
+            );
+            throw new Error(msg);
+        }
+        const text = await response.text();
+        return text ? JSON.parse(text) : {};
     }
 
-     // --- Product Management ---
+    // --- Product Management ---
     /**
      * Manages fetching all available products (global).
      */
@@ -656,9 +708,14 @@ class ApiClient {
      * POST /api/v1/sub-order-item-officine/
      */
     public async generateSubOrder(data: SubOrderPayload): Promise<unknown> {
+        const payload = {
+            officine_order: data.order_id,
+            officine: data.officine_id,
+            product: data.items.map(({ product_id, quantity }) => ({ product_id, quantity })),
+        };
         return this.request('/api/v1/sub-order-item-officine/', {
             method: 'POST',
-            body: JSON.stringify(data),
+            body: JSON.stringify(payload),
             requiresAuth: true,
         });
     }
@@ -725,6 +782,123 @@ class ApiClient {
      */
     public async getAllProductsOfficine(): Promise<unknown> {
         return this.request('/api/v1/officine/list-all-product-officine/', { requiresAuth: true });
+    }
+
+    // --- Notifications ---
+    public async getNotifications(): Promise<PharmaNotification[]> {
+        try {
+            const data = await this.request<unknown>('/api/v1/notification-user/list_notification_user/', { requiresAuth: true });
+            const items: unknown[] = Array.isArray(data) ? data : ((data as { results?: unknown[] }).results ?? []);
+            return items.map((n) => {
+                const notif = n as Record<string, unknown>;
+                return {
+                    id: String(notif.id ?? ''),
+                    title: String(notif.title ?? 'Notification'),
+                    message: String(notif.message ?? notif.content ?? notif.body ?? ''),
+                    is_read: Boolean(notif.is_read ?? notif.read ?? false),
+                    created_at: String(notif.created_at ?? new Date().toISOString()),
+                    type: notif.type ? String(notif.type) : undefined,
+                    order_id: notif.order_id ? String(notif.order_id) : undefined,
+                } as PharmaNotification;
+            });
+        } catch {
+            return [];
+        }
+    }
+
+    public async markNotificationAsRead(id: string): Promise<void> {
+        try {
+            await this.request(`/api/v1/notification-user/${id}/mark-read/`, { method: 'POST', requiresAuth: true });
+        } catch {
+            // silent
+        }
+    }
+
+
+    // --- Wallet ---
+    public async getWallet(): Promise<PharmaWallet | null> {
+        try {
+            const data = await this.request<PharmaWallet>('/api/v1/wallet-officine/get_wallet_officine/', { requiresAuth: true });
+            return data ?? null;
+        } catch {
+            return null;
+        }
+    }
+
+    public async getWalletTransactions(): Promise<PharmaTransaction[]> {
+        try {
+            const data = await this.request<unknown>('/api/v1/wallet-officine/transactions/', { requiresAuth: true });
+            const items: unknown[] = Array.isArray(data) ? data : ((data as { results?: unknown[] }).results ?? []);
+            return items as PharmaTransaction[];
+        } catch {
+            return [];
+        }
+    }
+
+    // --- Patient Orders ---
+
+    /**
+     * Retrieves all orders for the authenticated patient.
+     * GET /api/v1/list_order_patient/
+     */
+    public async getPatientOrders(): Promise<PatientOrder[]> {
+        try {
+            const data = await this.request<unknown>('/api/v1/list_order_patient/', { requiresAuth: true });
+            const items: unknown[] = Array.isArray(data)
+                ? data
+                : ((data as { results?: unknown[] }).results ?? []);
+            return items as PatientOrder[];
+        } catch {
+            return [];
+        }
+    }
+
+    /**
+     * Retrieves a single patient order by ID.
+     * GET /api/v1/list_order_patient/{order_id}/
+     */
+    public async getPatientOrderById(orderId: string): Promise<PatientOrder> {
+        return this.request<PatientOrder>(`/api/v1/list_order_patient/${orderId}/`, { requiresAuth: true });
+    }
+
+    /**
+     * Retrieves items for a patient order.
+     * GET /api/v1/officine-order/{order_id}/items-order/
+     */
+    public async getPatientOrderItems(orderId: string): Promise<PatientOrderItem[]> {
+        try {
+            const data = await this.request<unknown>(`/api/v1/officine-order/${orderId}/items-order/`, { requiresAuth: true });
+            if (Array.isArray(data)) return data as PatientOrderItem[];
+            const nested = data as { items?: PatientOrderItem[]; results?: PatientOrderItem[] };
+            return nested?.items ?? nested?.results ?? [];
+        } catch {
+            return [];
+        }
+    }
+
+    /**
+     * Initiates payment for a patient order.
+     * POST /api/v1/pay-order/
+     */
+    public async payOrder(payload: PaymentPayload): Promise<PaymentResponse> {
+        return this.request<PaymentResponse>('/api/v1/pay-order/', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            requiresAuth: true,
+        });
+    }
+
+    // --- Firebase Cloud Messaging ---
+    /**
+     * Enregistre le token FCM de l'appareil courant auprès du backend.
+     * POST /api/v1/register-fcm-token/
+     */
+    public async registerFcmToken(token: string): Promise<void> {
+        await this.request('/api/v1/register-fcm-token/', {
+            method: 'POST',
+            body: JSON.stringify({ token, device_type: 'web' }),
+            requiresAuth: true,
+        });
     }
 }
 

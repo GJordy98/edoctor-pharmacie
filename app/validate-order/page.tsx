@@ -7,14 +7,32 @@ import Footer from '@/components/layout/Footer';
 import { api } from '@/lib/api-client';
 
 // ── Types ──────────────────────────────────────────────
+interface MedicationItem {
+    id?: string | number;
+    name?: string;
+    product_name?: string;
+    quantity?: number;
+    unit?: string;
+    price?: number | string;
+    [key: string]: unknown;
+}
+
 interface ScanResult {
+    // Champs retournés par l'API scan-qrcode-pickup
+    message?: string;
+    officine?: string;
+    mission_status?: string;
+    // Liste de médicaments (à venir du backend)
+    medications?: MedicationItem[];
+    items?: MedicationItem[];
+    products?: MedicationItem[];
+    // Champs legacy / autres
     order_id?: string;
     patient_name?: string;
     driver_name?: string;
     pharmacy?: string;
     status?: string;
     scanned_at?: string;
-    message?: string;
     [key: string]: unknown;
 }
 
@@ -24,6 +42,7 @@ interface ValidationHistoryItem {
     date: string;
     status: 'success' | 'error';
     orderId?: string;
+    officine?: string;
 }
 
 
@@ -34,44 +53,165 @@ function formatDate(iso: string) {
     catch { return iso; }
 }
 
+// ── Badge statut mission ────────────────────────────────
+function MissionStatusBadge({ status }: { status?: string }) {
+    if (!status) return null;
+    const map: Record<string, { label: string; cls: string; icon: string }> = {
+        IN_TRANSIT: { label: 'En transit', cls: 'bg-primary', icon: 'ri-truck-line' },
+        DELIVERED: { label: 'Livré', cls: 'bg-success', icon: 'ri-checkbox-circle-line' },
+        PENDING: { label: 'En attente', cls: 'bg-warning', icon: 'ri-time-line' },
+        PICKUP_DONE: { label: 'Récupéré', cls: 'bg-info', icon: 'ri-hand-coin-line' },
+        CANCELLED: { label: 'Annulé', cls: 'bg-danger', icon: 'ri-close-circle-line' },
+    };
+    const cfg = map[status] ?? { label: status, cls: 'bg-secondary', icon: 'ri-information-line' };
+    return (
+        <span className={`badge ${cfg.cls} d-inline-flex align-items-center gap-1 fs-12 px-3 py-2`}>
+            <i className={cfg.icon}></i>{cfg.label}
+        </span>
+    );
+}
+
 // ── Composant résultat de validation ──────────────────
 function ScanResultCard({ data }: { data: ScanResult }) {
-    const fields = [
+    // Résoudre la liste de médicaments depuis plusieurs champs potentiels
+    const medications: MedicationItem[] = (
+        Array.isArray(data.medications) ? data.medications :
+            Array.isArray(data.items) ? data.items :
+                Array.isArray(data.products) ? data.products :
+                    []
+    );
+
+    // Afficher uniquement les champs legacy s'ils existent
+    const legacyFields = [
         { label: 'Commande', value: data.order_id, icon: 'ri-shopping-bag-line' },
         { label: 'Patient', value: data.patient_name, icon: 'ri-user-line' },
         { label: 'Livreur', value: data.driver_name, icon: 'ri-truck-line' },
-        { label: 'Pharmacie', value: data.pharmacy, icon: 'ri-store-2-line' },
-        { label: 'Statut', value: data.status, icon: 'ri-check-line' },
         { label: 'Scanné le', value: data.scanned_at ? formatDate(data.scanned_at) : undefined, icon: 'ri-time-line' },
-        { label: 'Message', value: data.message, icon: 'ri-information-line' },
     ].filter(f => f.value);
 
     return (
         <div className="card custom-card border-success mt-4">
+            {/* En-tête succès */}
             <div className="card-header bg-success text-white d-flex align-items-center gap-2">
                 <i className="ri-checkbox-circle-fill fs-5"></i>
                 <span className="card-title text-white mb-0">Retrait validé avec succès</span>
             </div>
-            <div className="card-body">
-                {fields.length > 0 ? (
-                    <div className="row g-3">
-                        {fields.map(f => (
-                            <div key={f.label} className="col-sm-6">
-                                <div className="d-flex align-items-start gap-2">
-                                    <i className={`${f.icon} text-success fs-5 mt-1`}></i>
-                                    <div>
-                                        <div className="text-muted small">{f.label}</div>
-                                        <div className="fw-semibold">{String(f.value)}</div>
-                                    </div>
+
+            <div className="card-body pb-0">
+                {/* Infos principales : officine + statut mission */}
+                <div className="row g-3 mb-3">
+                    {data.officine && (
+                        <div className="col-sm-6">
+                            <div className="d-flex align-items-start gap-2">
+                                <i className="ri-store-2-line text-success fs-5 mt-1"></i>
+                                <div>
+                                    <div className="text-muted small">Officine</div>
+                                    <div className="fw-semibold">{data.officine}</div>
                                 </div>
                             </div>
-                        ))}
+                        </div>
+                    )}
+                    {data.mission_status && (
+                        <div className="col-sm-6">
+                            <div className="d-flex align-items-start gap-2">
+                                <i className="ri-route-line text-success fs-5 mt-1"></i>
+                                <div>
+                                    <div className="text-muted small mb-1">Statut mission</div>
+                                    <MissionStatusBadge status={data.mission_status} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {data.message && (
+                        <div className="col-12">
+                            <div className="alert alert-success py-2 mb-0 d-flex align-items-center gap-2">
+                                <i className="ri-information-line"></i>
+                                <span className="small">{data.message}</span>
+                            </div>
+                        </div>
+                    )}
+                    {legacyFields.map(f => (
+                        <div key={f.label} className="col-sm-6">
+                            <div className="d-flex align-items-start gap-2">
+                                <i className={`${f.icon} text-success fs-5 mt-1`}></i>
+                                <div>
+                                    <div className="text-muted small">{f.label}</div>
+                                    <div className="fw-semibold">{String(f.value)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Section médicaments à remettre */}
+            <div className="card-footer p-0">
+                <div className="px-3 pt-3 pb-2 border-top">
+                    <div className="d-flex align-items-center gap-2 mb-3">
+                        <i className="ri-capsule-line text-primary fs-5"></i>
+                        <h6 className="mb-0 fw-semibold">Médicaments à remettre</h6>
+                        {medications.length > 0 && (
+                            <span className="badge bg-primary-transparent text-primary ms-auto">
+                                {medications.length} article{medications.length > 1 ? 's' : ''}
+                            </span>
+                        )}
                     </div>
-                ) : (
-                    <pre className="small bg-light p-3 rounded mb-0" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                        {JSON.stringify(data, null, 2)}
-                    </pre>
-                )}
+
+                    {medications.length === 0 ? (
+                        /* Placeholder : le backend n'envoie pas encore la liste */
+                        <div
+                            className="rounded-3 border border-dashed d-flex flex-column align-items-center justify-content-center py-4 px-3 mb-3"
+                            style={{ borderColor: '#c8d0da', background: '#f8f9fa', minHeight: '120px' }}
+                        >
+                            <i className="ri-medicine-bottle-line fs-1 text-muted mb-2" style={{ opacity: 0.4 }}></i>
+                            <p className="text-muted small mb-1 fw-medium">Liste des médicaments non disponible</p>
+                            <p className="text-muted" style={{ fontSize: '12px' }}>
+                                Le serveur ne retourne pas encore cette information.
+                                Elle s&apos;affichera automatiquement dès qu&apos;elle sera disponible.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="table-responsive mb-3">
+                            <table className="table table-sm table-hover align-middle">
+                                <thead className="table-light">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Médicament</th>
+                                        <th className="text-center">Qté</th>
+                                        <th className="text-end">Prix unit.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {medications.map((med, idx) => (
+                                        <tr key={med.id ?? idx}>
+                                            <td className="text-muted small">{idx + 1}</td>
+                                            <td>
+                                                <div className="d-flex align-items-center gap-2">
+                                                    <span className="avatar avatar-xs rounded bg-primary-transparent">
+                                                        <i className="ri-capsule-line text-primary"></i>
+                                                    </span>
+                                                    <span className="fw-medium">
+                                                        {med.name ?? med.product_name ?? `Produit ${idx + 1}`}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="text-center">
+                                                <span className="badge bg-secondary-transparent text-secondary">
+                                                    {med.quantity ?? '—'}{med.unit ? ` ${med.unit}` : ''}
+                                                </span>
+                                            </td>
+                                            <td className="text-end fw-semibold">
+                                                {med.price != null
+                                                    ? `${Number(med.price).toLocaleString('fr-FR')} FCFA`
+                                                    : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -109,16 +249,17 @@ export default function ValidateOrderOrQrPage() {
         setError(null);
         setScannedData(null);
         try {
-            const data = await api.scanQrCodePickup({ qr_code: code });
+            const data = await api.scanQrCodePickup(code);
             const result = (data ?? {}) as ScanResult;
             setScannedData(result);
             // Ajouter à l'historique local
             setHistory(prev => [{
                 id: Date.now().toString(),
-                driver: result.driver_name || 'Livreur',
+                driver: result.driver_name || result.officine || 'Livreur',
                 date: new Date().toISOString(),
                 status: 'success',
                 orderId: result.order_id,
+                officine: result.officine,
             }, ...prev.slice(0, 9)]);
             // Arrêter le scanner après succès
             stopScanner();
@@ -511,7 +652,7 @@ export default function ValidateOrderOrQrPage() {
                                                     <div className="d-flex align-items-center gap-2">
                                                         <div className="flex-fill overflow-hidden">
                                                             <div className="fw-semibold small text-truncate">
-                                                                {h.orderId ? `Cmd #${h.orderId.slice(0, 8)}` : h.driver}
+                                                                {h.officine ?? (h.orderId ? `Cmd #${h.orderId.slice(0, 8)}` : h.driver)}
                                                             </div>
                                                             <div className="text-muted" style={{ fontSize: '11px' }}>
                                                                 {formatDate(h.date)}

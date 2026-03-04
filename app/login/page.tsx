@@ -1,283 +1,170 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { api } from '@/lib/api-client';
+import React, { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Phone, Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api-client";
 
 export default function LoginPage() {
-    const router = useRouter();
-    
-    // État du formulaire
-    const [formData, setFormData] = useState({
-        telephone: '',
-        password: '',
-        rememberMe: true
-    });
+  const router = useRouter();
 
-    const [showPassword, setShowPassword] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [message, setMessage] = useState({ text: '', type: '' });
+  const [telephone, setTelephone] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { id, value, type, checked } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [id === 'login_telephone' ? 'telephone' : 
-             id === 'login_password' ? 'password' : 
-             'rememberMe']: type === 'checkbox' ? checked : value
-        }));
-    };
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
 
-    const togglePasswordVisibility = () => {
-        setShowPassword(!showPassword);
-    };
+    if (!telephone || !password) {
+      setError("Veuillez remplir tous les champs.");
+      return;
+    }
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        setMessage({ text: '', type: '' });
+    setIsSubmitting(true);
+    try {
+      const response = await api.login({ telephone, password });
 
-        if (!formData.telephone || !formData.password) {
-            setMessage({ text: 'Veuillez remplir tous les champs.', type: 'danger' });
-            return;
+      if (response.access && response.refresh) {
+        api.setTokens(response.access, response.refresh);
+        if (response.account) {
+          localStorage.setItem("account", JSON.stringify(response.account));
         }
-
-        setIsSubmitting(true);
-
-        try {
-            const response = await api.login({
-                telephone: formData.telephone,
-                password: formData.password
-            });
-
-            if (response.access && response.refresh) {
-                api.setTokens(response.access, response.refresh);
-                
-                if (response.account) {
-                    localStorage.setItem('account', JSON.stringify(response.account));
-                }
-                if (response.officine) {
-                    localStorage.setItem('officine', JSON.stringify(response.officine));
-                }
-                
-                setMessage({ text: 'Connexion réussie ! Redirection...', type: 'success' });
-                
-                setTimeout(() => {
-                    router.push('/products_list');
-                }, 1000);
-            } else {
-                throw new Error('Réponse invalide du serveur');
-            }
-
-        } catch (err: unknown) {
-            const error = err as Error & { message?: string };
-            console.error("Erreur de connexion:", error);
-            setMessage({ 
-                text: error.message || "Identifiants invalides ou erreur serveur.", 
-                type: 'danger' 
-            });
-        } finally {
-            setIsSubmitting(false);
+        if (response.officine) {
+          localStorage.setItem("officine", JSON.stringify(response.officine));
         }
-    };
+        router.push("/orders");
+      } else {
+        throw new Error("Réponse invalide du serveur");
+      }
+    } catch (err: unknown) {
+      const e = err as Error;
+      setError(e.message || "Identifiants invalides ou erreur serveur.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    return (
-        <div className="authentication-background">
-            <style jsx>{`
-                .authentication-background {
-                    background-color: #f0f2f5;
-                    min-height: 100vh;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    position: relative;
-                }
-                .authentication-basic-background {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    overflow: hidden;
-                    z-index: 0;
-                }
-                .authentication-basic-background img {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                    opacity: 0.6;
-                }
-                .custom-card {
-                    z-index: 1;
-                    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-                    border-radius: 12px;
-                    border: none;
-                }
-                .show-password-button {
-                    position: absolute;
-                    right: 15px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    cursor: pointer;
-                    z-index: 10;
-                }
-                .authentication-barrier {
-                    position: relative;
-                    text-align: center;
-                }
-                .authentication-barrier::before {
-                    content: "";
-                    position: absolute;
-                    width: 100%;
-                    height: 1px;
-                    background: #e9ecef;
-                    left: 0;
-                    top: 50%;
-                    z-index: -1;
-                }
-                .authentication-barrier span {
-                    background: #fff;
-                    padding: 0 15px;
-                    color: #adb5bd;
-                }
-            `}</style>
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-8">
+          {/* Logo */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="flex items-center gap-3 mb-3">
+              <svg width="44" height="44" viewBox="0 0 36 36" fill="none">
+                <rect width="36" height="36" rx="10" fill="#22C55E" />
+                <path d="M18 9v18M9 18h18" stroke="white" strokeWidth="3.5" strokeLinecap="round" />
+                <circle cx="18" cy="18" r="5" stroke="white" strokeWidth="2" fill="none" />
+              </svg>
+              <div>
+                <span className="text-[18px] font-bold text-[#1E293B] leading-none block">PharmaCare</span>
+                <span className="text-[11px] text-[#94A3B8] leading-none">Gestion de pharmacie</span>
+              </div>
+            </div>
+            <h1 className="text-[22px] font-semibold text-[#1E293B] mt-2">Se connecter</h1>
+            <p className="text-[13px] text-[#94A3B8] mt-1">Accédez à votre espace pharmacie</p>
+          </div>
 
-            <div className="authentication-basic-background">
-                <Image 
-                    src="/images/media/backgrounds/9.png" 
-                    alt="background" 
-                    fill
-                    style={{ objectFit: 'cover', opacity: 0.6 }}
-                    priority
+          {/* Error */}
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-[13px] px-4 py-3 rounded-xl mb-5">
+              <AlertCircle size={16} className="shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Phone */}
+            <div>
+              <label className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
+                Téléphone
+              </label>
+              <div className="relative">
+                <Phone
+                  size={16}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]"
                 />
+                <input
+                  type="tel"
+                  value={telephone}
+                  onChange={(e) => setTelephone(e.target.value)}
+                  placeholder="Ex: +237 6XX XX XX XX"
+                  className="w-full pl-10 pr-4 py-3 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
+                  required
+                />
+              </div>
             </div>
 
-            <div className="container" style={{ zIndex: 1 }}>
-                <div className="row justify-content-center align-items-center authentication authentication-basic h-100">
-                    <div className="col-xxl-6 col-xl-7 col-lg-8 col-md-10 col-sm-11 col-12">
-                        <div className="card custom-card my-4">
-                            <div className="card-body p-5">
-                                <div className="d-flex justify-content-center mb-4">
-                                    <Link href="/">
-                                        <div style={{ position: 'relative', width: '64px', height: '64px' }}>
-                                            <Image 
-                                                src="/images/brand-logos/toggle-logo.png" 
-                                                alt="logo" 
-                                                width={64}
-                                                height={64}
-                                                style={{ borderRadius: '9px' }}
-                                            />
-                                        </div>
-                                    </Link>
-                                </div>
-                                <div className="text-center">
-                                    <h4 className="mb-1 fw-semibold">Se connecter</h4>
-                                    <p className="mb-4 text-muted fw-normal">Connectez-vous en tant que pharmacie</p>
-                                </div>
-
-                                {message.text && (
-                                    <div className={`alert alert-${message.type} mb-3`} role="alert">
-                                        {message.text}
-                                    </div>
-                                )}
-
-                                <form onSubmit={handleSubmit} className="row gy-3">
-                                    <div className="col-xl-12">
-                                        <label htmlFor="login_telephone" className="form-label text-default">Téléphone</label>
-                                        <input 
-                                            id="login_telephone" 
-                                            type="tel" 
-                                            className="form-control form-control-lg"
-                                            placeholder="Ex: +237..."
-                                            value={formData.telephone}
-                                            onChange={handleChange}
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="col-xl-12">
-                                        <label htmlFor="login_password" className="form-label text-default">Mot de passe</label>
-                                        <div className="position-relative">
-                                            <input 
-                                                id="login_password" 
-                                                type={showPassword ? "text" : "password"} 
-                                                className="form-control form-control-lg"
-                                                placeholder="Votre mot de passe"
-                                                value={formData.password}
-                                                onChange={handleChange}
-                                                required
-                                            />
-                                            <span 
-                                                className="show-password-button text-muted"
-                                                onClick={togglePasswordVisibility}
-                                            >
-                                                <i className={showPassword ? "ri-eye-line" : "ri-eye-off-line"}></i>
-                                            </span>
-                                        </div>
-                                        <div className="mt-2 text-end">
-                                            <Link href="/forgot-password" className="text-danger text-decoration-none">Mot de passe oublié ?</Link>
-                                        </div>
-
-                                        <div className="mt-2">
-                                            <div className="form-check mb-0">
-                                                <input 
-                                                    className="form-check-input" 
-                                                    type="checkbox" 
-                                                    id="defaultCheck1"
-                                                    checked={formData.rememberMe}
-                                                    onChange={handleChange}
-                                                />
-                                                <label className="form-check-label" htmlFor="defaultCheck1">
-                                                    Rester connecté
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="d-grid mt-4">
-                                        <button 
-                                            type="submit" 
-                                            className="btn btn-primary btn-lg"
-                                            disabled={isSubmitting}
-                                        >
-                                            {isSubmitting ? (
-                                                <>
-                                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                                    Connexion...
-                                                </>
-                                            ) : "Se connecter"}
-                                        </button>
-                                    </div>
-                                </form>
-
-                                <div className="text-center my-3 authentication-barrier">
-                                    <span>OU</span>
-                                </div>
-
-                                <div className="d-grid mb-3">
-                                    <button className="btn btn-white btn-w-lg border d-flex align-items-center justify-content-center flex-fill mb-3">
-                                        <span className="avatar avatar-xs">
-                                        <Image src="/images/media/apps/google.png" alt="Google" width={18} height={18} />
-                                    </span>
-                                        <span className="lh-1 ms-2 fs-13 text-default fw-medium">Se connecter avec Google</span>
-                                    </button>
-                                    <button className="btn btn-white btn-w-lg border d-flex align-items-center justify-content-center flex-fill">
-                                        <span className="avatar avatar-xs shrink-0">
-                                            <Image src="/images/media/apps/facebook.png" alt="Facebook" width={18} height={18} />
-                                        </span>
-                                        <span className="lh-1 ms-2 fs-13 text-default fw-medium">Se connecter avec Facebook</span>
-                                    </button>
-                                </div>
-
-                                <div className="text-center mt-3 fw-medium">
-                                    Pas encore de compte pharmacie ? <Link href="/create_pharmacy" className="text-primary">Créez votre compte pharmacie ici</Link>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            {/* Password */}
+            <div>
+              <label className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
+                Mot de passe
+              </label>
+              <div className="relative">
+                <Lock
+                  size={16}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]"
+                />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Votre mot de passe"
+                  className="w-full pl-10 pr-11 py-3 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#1E293B] transition-colors"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <div className="flex justify-end mt-1.5">
+                <Link
+                  href="/forgot-password"
+                  className="text-[12px] text-[#22C55E] hover:text-[#16A34A] font-medium"
+                >
+                  Mot de passe oublié ?
+                </Link>
+              </div>
             </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 bg-[#22C55E] hover:bg-[#16A34A] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-[15px] rounded-xl transition-colors flex items-center justify-center gap-2 mt-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Connexion…
+                </>
+              ) : (
+                "Se connecter"
+              )}
+            </button>
+          </form>
+
+          {/* Footer */}
+          <p className="text-center text-[13px] text-[#94A3B8] mt-6">
+            Pas encore de compte ?{" "}
+            <Link
+              href="/create_pharmacy"
+              className="text-[#22C55E] hover:text-[#16A34A] font-semibold"
+            >
+              Créer une pharmacie
+            </Link>
+          </p>
         </div>
-    );
+      </div>
+    </div>
+  );
 }

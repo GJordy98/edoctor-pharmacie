@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Header from '@/components/layout/Header';
@@ -17,49 +17,21 @@ export default function ProductsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // --- Recherche API officine ---
-  const [apiResults, setApiResults] = useState<Product[] | null>(null);
-  const [apiSearchLoading, setApiSearchLoading] = useState(false);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [apiMsg, setApiMsg] = useState<{ text: string; type: 'success' | 'danger' } | null>(null);
-  const [officineId, setOfficineId] = useState('');
-
-  useEffect(() => {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('officine') : null;
-    if (raw) {
-      try { const p = JSON.parse(raw); setOfficineId(p?.id || p?.uuid || String(p) || ''); }
-      catch { setOfficineId(raw); }
-    }
-  }, []);
-
-  // --- Recherche via API officine ---
-  const handleApiSearch = async () => {
-    if (!searchQuery.trim()) return;
-    setApiSearchLoading(true);
-    setApiMsg(null);
-    try {
-      const res = await api.searchProductOfficine({ search: searchQuery, officine_id: officineId });
-      const list = Array.isArray(res) ? res : ((res as Record<string, unknown>)?.results ?? (res as Record<string, unknown>)?.data ?? []);
-      setApiResults(list as Product[]);
-      setApiMsg({ text: `${(list as Product[]).length} résultat(s) trouvé(s) via l'API.`, type: 'success' });
-    } catch (err: unknown) {
-      setApiMsg({ text: err instanceof Error ? err.message : 'Erreur recherche API.', type: 'danger' });
-    } finally {
-      setApiSearchLoading(false);
-    }
-  };
-
   // --- Catalogue complet de l'officine ---
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogResults, setCatalogResults] = useState<Product[] | null>(null);
+  const [catalogMsg, setCatalogMsg] = useState<{ text: string; type: 'success' | 'danger' } | null>(null);
+
   const handleViewCatalog = async () => {
     setCatalogLoading(true);
-    setApiMsg(null);
+    setCatalogMsg(null);
     try {
       const res = await api.getAllProductsOfficine();
       const list = Array.isArray(res) ? res : ((res as Record<string, unknown>)?.results ?? (res as Record<string, unknown>)?.data ?? []);
-      setApiResults(list as Product[]);
-      setApiMsg({ text: `${(list as Product[]).length} produit(s) dans le catalogue officine.`, type: 'success' });
+      setCatalogResults(list as Product[]);
+      setCatalogMsg({ text: `${(list as Product[]).length} produit(s) dans le catalogue officine.`, type: 'success' });
     } catch (err: unknown) {
-      setApiMsg({ text: err instanceof Error ? err.message : 'Erreur chargement catalogue.', type: 'danger' });
+      setCatalogMsg({ text: err instanceof Error ? err.message : 'Erreur chargement catalogue.', type: 'danger' });
     } finally {
       setCatalogLoading(false);
     }
@@ -308,22 +280,8 @@ export default function ProductsPage() {
                         onChange={(e) => {
                           setSearchQuery(e.target.value);
                           setCurrentPage(1);
-                          setApiResults(null);
-                          setApiMsg(null);
                         }}
-                        onKeyDown={(e) => e.key === 'Enter' && handleApiSearch()}
                       />
-                      <button
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={handleApiSearch}
-                        disabled={apiSearchLoading || !searchQuery.trim()}
-                        title="Rechercher via l'API officine"
-                      >
-                        {apiSearchLoading
-                          ? <span className="spinner-border spinner-border-sm"></span>
-                          : <i className="ri-search-2-line"></i>
-                        }
-                      </button>
                     </div>
 
                     {/* Catalogue officine */}
@@ -340,11 +298,11 @@ export default function ProductsPage() {
                       Catalogue
                     </button>
 
-                    {/* Reset résultats API */}
-                    {apiResults && (
+                    {/* Reset catalogue */}
+                    {catalogResults && (
                       <button
                         className="btn btn-sm btn-outline-secondary"
-                        onClick={() => { setApiResults(null); setApiMsg(null); }}
+                        onClick={() => { setCatalogResults(null); setCatalogMsg(null); }}
                         title="Revenir à la liste locale"
                       >
                         <i className="ri-close-line me-1"></i>Réinitialiser
@@ -388,12 +346,12 @@ export default function ProductsPage() {
                   </div>
                 </div>
 
-                {/* Message résultats API */}
-                {apiMsg && (
-                  <div className={`alert alert-${apiMsg.type} alert-dismissible m-3 mb-0`} role="alert">
-                    <i className={`${apiMsg.type === 'success' ? 'ri-checkbox-circle-line' : 'ri-error-warning-line'} me-2`}></i>
-                    {apiMsg.text}
-                    <button type="button" className="btn-close" onClick={() => setApiMsg(null)}></button>
+                {/* Message catalogue */}
+                {catalogMsg && (
+                  <div className={`alert alert-${catalogMsg.type} alert-dismissible m-3 mb-0`} role="alert">
+                    <i className={`${catalogMsg.type === 'success' ? 'ri-checkbox-circle-line' : 'ri-error-warning-line'} me-2`}></i>
+                    {catalogMsg.text}
+                    <button type="button" className="btn-close" onClick={() => setCatalogMsg(null)}></button>
                   </div>
                 )}
 
@@ -446,7 +404,7 @@ export default function ProductsPage() {
                             </td>
                           </tr>
                         ) : (
-                          (apiResults ?? paginatedProducts).map((product: Product) => (
+                          (catalogResults?.length ? catalogResults : paginatedProducts).map((product: Product) => (
                             <tr key={product.id}>
                               <td className="text-center">
                                 <div className="avatar avatar-md bg-light overflow-hidden rounded-2" style={{ position: 'relative', width: '40px', height: '40px' }}>

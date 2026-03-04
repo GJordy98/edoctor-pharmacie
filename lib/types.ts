@@ -126,53 +126,53 @@ export interface PharmacistRegisterData {
 }
 
 export interface Product {
-  id: string;
-  name: string;
-  dci?: string;
-  dosage?: string;
-
-  // UUIDs
-  category: string;
-  galenic: string;
-  unit_base: string;
-  unit_sale: string;
-  unit_purchase: string;
-
-  // Détails enrichis retournés par l'API
-  category_detail?: {
     id: string;
     name: string;
-    description?: string;
-    is_medical_regulated?: boolean;
-  };
-  galenic_detail?: {
-    id: string;
-    name: string;
-    unit_base_override?: string;
-  };
-  unit_base_detail?: {
-    id: string;
-    code: string;
-    label: string;
-  };
-  unit_sale_detail?: {
-    id: string;
-    code: string;
-    label: string;
-  };
-  unit_purchase_detail?: {
-    id: string;
-    code: string;
-    label: string;
-  };
+    dci?: string;
+    dosage?: string;
 
-  sale_price?: number;
-  currency?: string;
-  image?: string | null;
+    // UUIDs
+    category: string;
+    galenic: string;
+    unit_base: string;
+    unit_sale: string;
+    unit_purchase: string;
 
-  created_at?: string;
-  updated_at?: string;
-  [key: string]: unknown;
+    // Détails enrichis retournés par l'API
+    category_detail?: {
+        id: string;
+        name: string;
+        description?: string;
+        is_medical_regulated?: boolean;
+    };
+    galenic_detail?: {
+        id: string;
+        name: string;
+        unit_base_override?: string;
+    };
+    unit_base_detail?: {
+        id: string;
+        code: string;
+        label: string;
+    };
+    unit_sale_detail?: {
+        id: string;
+        code: string;
+        label: string;
+    };
+    unit_purchase_detail?: {
+        id: string;
+        code: string;
+        label: string;
+    };
+
+    sale_price?: number;
+    currency?: string;
+    image?: string | null;
+
+    created_at?: string;
+    updated_at?: string;
+    [key: string]: unknown;
 }
 
 export interface ProductData {
@@ -185,7 +185,7 @@ export interface ProductData {
     salePrice: number;
     currency: string;
     stock: number;
-    categoryId?: string; 
+    categoryId?: string;
     description?: string;
     [key: string]: unknown;
 }
@@ -212,44 +212,44 @@ export interface Unit {
 }
 
 export interface ProductCreatePayload {
-  name: string;
-  dci?: string;
-  dosage?: string;
-  officine?: string;
-
-  // UUIDs des entités existantes
-  category?: string;
-  galenic?: string;
-  unit_base?: string;
-  unit_sale?: string;
-  unit_purchase?: string;
-
-  // Détails pour création à la volée (optionnels)
-  category_detail?: {
     name: string;
-    description?: string;
-    is_medical_regulated?: boolean;
-  };
-  galenic_detail?: {
-    name: string;
-    unit_base_override?: string;
-  };
-  unit_base_detail?: {
-    code: string;
-    label: string;
-  };
-  unit_sale_detail?: {
-    code: string;
-    label: string;
-  };
-  unit_purchase_detail?: {
-    code: string;
-    label: string;
-  };
-  sale_price?: number;
-  currency?: string;
-  stock?: number;
-  image?: File | string | null;
+    dci?: string;
+    dosage?: string;
+    officine?: string;
+
+    // UUIDs des entités existantes
+    category?: string;
+    galenic?: string;
+    unit_base?: string;
+    unit_sale?: string;
+    unit_purchase?: string;
+
+    // Détails pour création à la volée (optionnels)
+    category_detail?: {
+        name: string;
+        description?: string;
+        is_medical_regulated?: boolean;
+    };
+    galenic_detail?: {
+        name: string;
+        unit_base_override?: string;
+    };
+    unit_base_detail?: {
+        code: string;
+        label: string;
+    };
+    unit_sale_detail?: {
+        code: string;
+        label: string;
+    };
+    unit_purchase_detail?: {
+        code: string;
+        label: string;
+    };
+    sale_price?: number;
+    currency?: string;
+    stock?: number;
+    image?: File | string | null;
 }
 
 export interface LotCreatePayload {
@@ -310,18 +310,18 @@ export interface Account {
 
 // --- Planning / Horaires ---
 export interface ScheduleDayPayload {
-    day: string; // 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
-    opening_time: string; // 'HH:MM'
-    closing_time: string; // 'HH:MM'
-    is_open: boolean;
+    day: 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
+    open_time: string;   // 'HH:MM'
+    close_time: string;  // 'HH:MM'
+    is_guard: boolean;
 }
 
 export interface SchedulePayload {
-    schedule: ScheduleDayPayload[];
+    schedules: ScheduleDayPayload[];
 }
 
 export interface ScheduleResponse {
-    schedule?: ScheduleDayPayload[];
+    schedules?: ScheduleDayPayload[];
     [key: string]: unknown;
 }
 
@@ -329,13 +329,12 @@ export interface ScheduleResponse {
 export interface SubOrderItemPayload {
     product_id: string;
     quantity: number;
-    unit_price: number;
 }
 
 export interface SubOrderPayload {
-    order_id: string;
-    officine_id: string;
-    items: SubOrderItemPayload[];
+    order_id: string;      // mapped to officine_order in API payload
+    officine_id: string;   // mapped to officine in API payload
+    items: SubOrderItemPayload[];  // mapped to product[] in API payload
 }
 
 // --- Facture ---
@@ -352,5 +351,102 @@ export interface QrCodeResponse {
     qr_code?: string;
     qr_code_url?: string;
     image?: string;
+    [key: string]: unknown;
+}
+
+// --- Notifications pharmacie ---
+export interface PharmaNotification {
+    id: string;
+    title: string;
+    message: string;
+    is_read: boolean;
+    created_at: string;
+    type?: string;
+    order_id?: string;
+}
+
+// --- Wallet pharmacie ---
+export interface PharmaWallet {
+    id: string;
+    balance: number;
+    locked_amount: number;
+    created_at: string;
+    updated_at?: string;
+}
+
+export interface PharmaTransaction {
+    id: string;
+    type: 'CREDIT' | 'DEBIT';
+    amount: number;
+    status: 'COMPLETED' | 'PENDING' | 'FAILED';
+    description: string;
+    created_at: string;
+    reference?: string;
+}
+
+// --- Patient-side order types ---
+
+export interface PatientOrderItem {
+    id: string | number;
+    product_name?: string;
+    product?: {
+        id?: string;
+        name?: string;
+        dci?: string;
+        dosage?: string;
+    };
+    /** Prix de vente unitaire défini par l'officine */
+    sale_price?: number | string;
+    unit_price?: number | string;
+    price?: number | string;
+    quantity: number | string;
+    /** Quantité disponible en stock (peut différer de la quantité demandée) */
+    quantity_available?: number | string;
+    line_total?: number | string;
+    total_price?: number | string;
+    [key: string]: unknown;
+}
+
+export interface PatientOfficine {
+    id?: string;
+    name?: string;
+    telephone?: string;
+    adresse?: {
+        city?: string;
+        rue?: string;
+        quater?: string;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
+export interface PatientOrder {
+    id: string;
+    status: string;
+    payment_status?: string;
+    total_amount?: number | string;
+    currency?: string;
+    created_at?: string;
+    officine?: PatientOfficine;
+    delivery_fee?: number | string;
+    patient?: {
+        first_name?: string;
+        last_name?: string;
+        phone?: string;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
+export interface PaymentPayload {
+    order_id: string;
+    payment_method: 'MOMO' | 'CASH' | 'OM';
+    phone_number?: string;
+}
+
+export interface PaymentResponse {
+    success?: boolean;
+    message?: string;
+    transaction_id?: string;
     [key: string]: unknown;
 }
