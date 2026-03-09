@@ -30,12 +30,14 @@ export default function WalletPage() {
   const [transactions, setTransactions] = useState<PharmaTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [officineId, setOfficineId] = useState<string>('');
 
-  const fetchData = async () => {
+  const fetchData = async (oId: string) => {
+    if (!oId) return;
     try {
       setLoading(true);
       const [walletData, txData] = await Promise.all([
-        api.getWallet(),
+        api.getWallet(oId),
         api.getWalletTransactions(),
       ]);
       setWallet(walletData);
@@ -48,7 +50,22 @@ export default function WalletPage() {
   };
 
   useEffect(() => {
-    fetchData();
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('officine') : null;
+    let id = '';
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        id = parsed?.id || parsed?.uuid || String(parsed) || '';
+      } catch {
+        id = raw;
+      }
+    }
+    setOfficineId(id);
+    if (id) {
+      fetchData(id);
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   if (loading) {
@@ -82,7 +99,7 @@ export default function WalletPage() {
                 <div className="flex items-center gap-2">
                   <Wallet size={22} className="opacity-60" />
                   <button
-                    onClick={fetchData}
+                    onClick={() => fetchData(officineId)}
                     className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
                     title="Actualiser"
                   >

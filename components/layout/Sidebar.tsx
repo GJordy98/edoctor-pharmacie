@@ -11,19 +11,29 @@ import {
   UserCircle,
   Settings,
   LogOut,
+  PackageSearch,
 } from "lucide-react";
 
 const navItems = [
-  { href: "/orders",        icon: ClipboardList,  label: "Commandes" },
-  { href: "/products_list", icon: Pill,           label: "Médicaments" },
-  { href: "/add-product",   icon: Plus,           label: "Ajouter stock" },
-  { href: "/wallet",        icon: Wallet,         label: "Portefeuille" },
-  { href: "/schedule",      icon: Clock,          label: "Horaires" },
+  { href: "/orders", icon: ClipboardList, label: "Commandes" },
+  { href: "/products_list", icon: Pill, label: "Médicaments" },
+  { href: "/add-product", icon: Plus, label: "Ajouter stock" },
+  { href: "/wallet", icon: Wallet, label: "Portefeuille" },
+  { href: "/schedule", icon: Clock, label: "Horaires" },
+  { href: "/recuperation-colis", icon: PackageSearch, label: "Récupération colis" },
+];
+
+// Barre mobile : 4 items max pour ne pas saturer l'écran
+const mobileNavItems = [
+  { href: "/orders", icon: ClipboardList, label: "Commandes" },
+  { href: "/products_list", icon: Pill, label: "Médicaments" },
+  { href: "/recuperation-colis", icon: PackageSearch, label: "Colis" },
+  { href: "/wallet", icon: Wallet, label: "Portefeuille" },
 ];
 
 const bottomItems = [
-  { href: "/profile",  icon: UserCircle, label: "Profil" },
-  { href: "/settings", icon: Settings,   label: "Paramètres" },
+  { href: "/profile", icon: UserCircle, label: "Profil" },
+  { href: "/settings", icon: Settings, label: "Paramètres" },
 ];
 
 function logout() {
@@ -61,11 +71,10 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
-              className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
-                isActive(href)
-                  ? "bg-[#F0FDF4] text-[#22C55E]"
-                  : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
-              }`}
+              className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${isActive(href)
+                ? "bg-[#F0FDF4] text-[#22C55E]"
+                : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+                }`}
             >
               {isActive(href) && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-[#22C55E] rounded-r-full" />
@@ -85,11 +94,10 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                isActive(href)
-                  ? "bg-[#F0FDF4] text-[#22C55E]"
-                  : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
-              }`}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive(href)
+                ? "bg-[#F0FDF4] text-[#22C55E]"
+                : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+                }`}
             >
               <Icon size={20} />
               <span className="text-[14px] font-medium">{label}</span>
@@ -108,26 +116,24 @@ export default function Sidebar() {
       {/* ── Mobile Bottom Nav ── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] z-40">
         <div className="flex items-center justify-around px-2 py-2">
-          {navItems.map(({ href, icon: Icon, label }) => (
+          {mobileNavItems.map(({ href, icon: Icon, label }) => (
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl ${
-                isActive(href) ? "text-[#22C55E]" : "text-[#94A3B8]"
-              }`}
+              className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl ${isActive(href) ? "text-[#22C55E]" : "text-[#94A3B8]"
+                }`}
             >
-              <Icon size={22} />
-              <span className="text-[10px] font-medium">{label}</span>
+              <Icon size={20} />
+              <span className="text-[10px] font-medium leading-tight">{label}</span>
             </Link>
           ))}
           <Link
             href="/settings"
-            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl ${
-              pathname === "/settings" ? "text-[#22C55E]" : "text-[#94A3B8]"
-            }`}
+            className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl ${pathname === "/settings" ? "text-[#22C55E]" : "text-[#94A3B8]"
+              }`}
           >
-            <Settings size={22} />
-            <span className="text-[10px] font-medium">Paramètres</span>
+            <Settings size={20} />
+            <span className="text-[10px] font-medium leading-tight">Paramètres</span>
           </Link>
         </div>
       </nav>

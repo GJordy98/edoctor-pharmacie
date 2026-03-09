@@ -8,10 +8,6 @@ import {
   Edit2,
   Trash2,
   Package,
-  PackageCheck,
-  PackageX,
-  AlertTriangle,
-  Banknote,
   X,
   Loader2,
   AlertCircle,
@@ -19,36 +15,6 @@ import {
 import { useProducts } from "@/hooks/useProducts";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { showToast } from "@/components/ui/Toast";
-
-/* ── stat card ── */
-function StatCard({
-  label,
-  value,
-  sub,
-  icon: Icon,
-  color,
-}: {
-  label: string;
-  value: string | number;
-  sub: string;
-  icon: React.ElementType;
-  color: string;
-}) {
-  return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] text-[#94A3B8] font-medium">{label}</p>
-          <p className="text-[26px] font-bold text-[#1E293B] leading-tight mt-0.5">{value}</p>
-          <p className="text-[11px] text-[#94A3B8] mt-1">{sub}</p>
-        </div>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-          <Icon size={18} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ── skeleton ── */
 function SkeletonRow() {
@@ -98,16 +64,6 @@ export default function ProductsPage() {
     }
   };
 
-  /* derived stats */
-  const inStock = products.filter((p) => (Number(p.stock) || 0) > 0).length;
-  const outOfStock = products.filter((p) => (Number(p.stock) || 0) === 0).length;
-  const lowStock = products.filter((p) => {
-    const s = Number(p.stock) || 0;
-    return s > 0 && s <= 10;
-  }).length;
-  const totalValue = products.reduce((sum, p) => {
-    return sum + (Number(p.sale_price) || 0) * (Number(p.stock) || 0);
-  }, 0);
 
   return (
     <DashboardLayout title="Médicaments">
@@ -133,44 +89,6 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {/* ── Stat cards ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <StatCard
-            label="Total produits"
-            value={products.length}
-            sub="Enregistrés"
-            icon={Package}
-            color="bg-[#F0FDF4] text-[#22C55E]"
-          />
-          <StatCard
-            label="En stock"
-            value={inStock}
-            sub={`${products.length > 0 ? Math.round((inStock / products.length) * 100) : 0}% disponibles`}
-            icon={PackageCheck}
-            color="bg-green-50 text-green-600"
-          />
-          <StatCard
-            label="Rupture"
-            value={outOfStock}
-            sub="Nécessite réapprovisionnement"
-            icon={PackageX}
-            color="bg-orange-50 text-orange-500"
-          />
-          <StatCard
-            label="Stock faible"
-            value={lowStock}
-            sub="≤ 10 unités"
-            icon={AlertTriangle}
-            color="bg-red-50 text-red-500"
-          />
-          <StatCard
-            label="Valeur totale"
-            value={totalValue.toLocaleString("fr-FR", { maximumFractionDigits: 0 })}
-            sub="FCFA"
-            icon={Banknote}
-            color="bg-blue-50 text-blue-600"
-          />
-        </div>
 
         {/* ── Table ── */}
         <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">

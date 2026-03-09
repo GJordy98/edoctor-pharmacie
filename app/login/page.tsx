@@ -3,8 +3,9 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Phone, Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api-client";
+import PhoneInput from "@/components/ui/PhoneInput";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -84,20 +85,13 @@ export default function LoginPage() {
               <label className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
                 Téléphone
               </label>
-              <div className="relative">
-                <Phone
-                  size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]"
-                />
-                <input
-                  type="tel"
-                  value={telephone}
-                  onChange={(e) => setTelephone(e.target.value)}
-                  placeholder="Ex: +237 6XX XX XX XX"
-                  className="w-full pl-10 pr-4 py-3 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
-                  required
-                />
-              </div>
+              <PhoneInput
+                id="login-telephone"
+                value={telephone}
+                onChange={setTelephone}
+                placeholder="6XX XX XX XX"
+                required
+              />
             </div>
 
             {/* Password */}

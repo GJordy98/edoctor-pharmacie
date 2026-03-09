@@ -21,6 +21,7 @@ import {
   XCircle,
   Trash2,
   PackagePlus,
+  ZoomIn,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { InvoiceResponse, QrCodeResponse, Product } from "@/lib/types";
@@ -31,6 +32,7 @@ import { showToast } from "@/components/ui/Toast";
 /* ── local types ── */
 interface ApiOrderItem {
   id: number | string;
+  officine_order?: { id?: string };
   product?: { id?: string; name?: string; dci?: string; galenic?: string };
   product_name?: string;
   quantity: number | string;
@@ -48,7 +50,7 @@ interface OrderItem {
   quantity: number;
   price: number;
   total: number;
-  status: "pending" | "reserved" | "unavailable";
+  status: "PENDING" | "RESERVED" | "CANCELLED" | "PICKED" | "COMPLETED";
 }
 
 interface OrderData {
@@ -141,6 +143,7 @@ export default function OrderDetailsPage() {
   const [addedProducts, setAddedProducts] = useState<OrderItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isValidating, setIsValidating] = useState(false);
+  const [itemsUpdating, setItemsUpdating] = useState<Set<number | string>>(new Set());
 
   // Products for prescription cases
   const [pharmacyProducts, setPharmacyProducts] = useState<Product[]>([]);
@@ -159,6 +162,9 @@ export default function OrderDetailsPage() {
   const [qrData, setQrData] = useState<QrCodeResponse | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
+
+  // Prescription lightbox
+  const [showPrescriptionLightbox, setShowPrescriptionLightbox] = useState(false);
 
   // Sub-order modal
   const [showSubModal, setShowSubModal] = useState(false);
@@ -222,7 +228,7 @@ export default function OrderDetailsPage() {
           quantity: parseFloat(String(item.quantity)),
           price: parseFloat(String(item.unit_price ?? item.price ?? 0)),
           total: parseFloat(String(item.line_total ?? item.total_price ?? 0)),
-          status: "pending" as const,
+          status: (item.status?.toUpperCase() || "PENDING") as OrderItem["status"],
         }));
         setItems(mapped);
       }
@@ -242,12 +248,26 @@ export default function OrderDetailsPage() {
     items.length > 0 && !order?.prescription
       ? 1
       : !items.length && order?.prescription
-      ? 2
-      : 3;
+        ? 2
+        : 3;
 
-  // Item toggle
-  const toggleItem = (itemId: number | string, status: "reserved" | "unavailable") => {
-    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, status } : i)));
+  // PATCH /api/v1/order-item/{item.id}/ — body: { status }
+  const toggleItem = async (itemId: number | string, newStatus: "RESERVED" | "CANCELLED") => {
+    if (itemsUpdating.has(itemId)) return;
+    const previousItems = items;
+    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, status: newStatus } as OrderItem : i)));
+    setItemsUpdating((s) => new Set(s).add(itemId));
+    try {
+      await api.updateOrderItemStatus(String(itemId), {
+        id: itemId,
+        status: newStatus,
+      });
+    } catch (err) {
+      setItems(previousItems);
+      showToast(err instanceof Error ? err.message : "Erreur lors de la mise à jour du produit.", "error");
+    } finally {
+      setItemsUpdating((s) => { const next = new Set(s); next.delete(itemId); return next; });
+    }
   };
 
   // Add product (case 2 & 3)
@@ -259,7 +279,7 @@ export default function OrderDetailsPage() {
     const label = [p.name, p.dci, p.dosage].filter(Boolean).join(" — ");
     setAddedProducts((prev) => [
       ...prev,
-      { id: Date.now(), name: label, quantity, price: unitPrice, total: unitPrice * quantity, status: "reserved" },
+      { id: Date.now(), name: label, quantity, price: unitPrice, total: unitPrice * quantity, status: "RESERVED" as const },
     ]);
     setSelectedProductId("");
     setQuantity(1);
@@ -268,11 +288,11 @@ export default function OrderDetailsPage() {
   // Validate order
   const validateOrder = async () => {
     const all = [...items, ...addedProducts];
-    if (all.every((i) => i.status === "pending")) {
+    if (all.every((i) => i.status === "PENDING")) {
       showToast("Marquez la disponibilité d'au moins un produit.", "warning");
       return;
     }
-    const hasReserved = all.some((i) => i.status === "reserved");
+    const hasReserved = all.some((i) => i.status === "RESERVED");
     const finalStatus = hasReserved ? "RESERVED" : "REJECTED";
     setIsValidating(true);
     try {
@@ -368,12 +388,12 @@ export default function OrderDetailsPage() {
   /* ── computed ── */
   const allItems = [...items, ...addedProducts];
   const reservedTotal = items
-    .filter((i) => i.status !== "unavailable")
+    .filter((i) => i.status !== "CANCELLED")
     .reduce((s, i) => s + i.total, 0);
   const addedTotal = addedProducts.reduce((s, i) => s + i.total, 0);
   const finalTotal = reservedTotal + addedTotal;
-  const hasReserved = allItems.some((i) => i.status === "reserved");
-  const allPending = allItems.every((i) => i.status === "pending");
+  const hasReserved = allItems.some((i) => i.status === "RESERVED");
+  const allPending = allItems.every((i) => i.status === "PENDING");
 
   /* ── loading ── */
   if (isLoading) {
@@ -479,8 +499,8 @@ export default function OrderDetailsPage() {
           {orderCase === 1
             ? "Produits uniquement"
             : orderCase === 2
-            ? "Ordonnance uniquement"
-            : "Ordonnance + Produits"}
+              ? "Ordonnance uniquement"
+              : "Ordonnance + Produits"}
         </div>
 
         {/* ── Info cards ── */}
@@ -498,28 +518,48 @@ export default function OrderDetailsPage() {
           <div className="lg:col-span-2 space-y-5">
 
             {/* Prescription image */}
-            {(orderCase === 2 || orderCase === 3) && order?.prescription && (
+            {order?.prescription && (
               <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
-                  <h3 className="text-[14px] font-semibold text-[#1E293B]">Ordonnance</h3>
+                  <h3 className="text-[14px] font-semibold text-[#1E293B] flex items-center gap-2">
+                    <FileText size={15} className="text-[#22C55E]" />
+                    Ordonnance patient
+                  </h3>
                   <a
                     href={order.prescription}
                     target="_blank"
                     rel="noreferrer"
                     className="w-8 h-8 flex items-center justify-center rounded-lg text-[#94A3B8] hover:text-[#22C55E] hover:bg-[#F0FDF4] transition-colors"
+                    title="Télécharger"
                   >
                     <Download size={14} />
                   </a>
                 </div>
-                <div className="p-4 flex justify-center">
-                  <Image
-                    src={order.prescription}
-                    alt="Ordonnance"
-                    width={500}
-                    height={700}
-                    className="rounded-lg shadow-sm max-h-[500px] object-contain"
-                  />
-                </div>
+                {/* Thumbnail — cliquer pour ouvrir la lightbox */}
+                <button
+                  type="button"
+                  onClick={() => setShowPrescriptionLightbox(true)}
+                  className="w-full p-4 flex flex-col items-center gap-2 group cursor-zoom-in"
+                  title="Cliquer pour agrandir"
+                >
+                  <div className="relative w-full max-w-[360px]">
+                    <Image
+                      src={order.prescription}
+                      alt="Ordonnance"
+                      width={360}
+                      height={500}
+                      className="rounded-lg shadow-sm object-contain w-full max-h-[320px] group-hover:opacity-90 transition-opacity"
+                    />
+                    {/* Overlay hint */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="bg-black/50 backdrop-blur-sm rounded-xl px-3 py-2 flex items-center gap-2 text-white text-[12px] font-semibold">
+                        <ZoomIn size={14} />
+                        Agrandir
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-[#94A3B8]">Cliquez pour afficher en plein écran</p>
+                </button>
               </div>
             )}
 
@@ -549,28 +589,32 @@ export default function OrderDetailsPage() {
                           <td className="px-4 py-3 font-semibold text-[#1E293B]">{item.total.toLocaleString("fr-FR")} XAF</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => toggleItem(item.id, "reserved")}
-                                className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors ${
-                                  item.status === "reserved"
-                                    ? "bg-[#22C55E] text-white"
-                                    : "border border-[#E2E8F0] text-[#94A3B8] hover:border-[#22C55E] hover:text-[#22C55E]"
-                                }`}
-                              >
-                                <Check size={11} />
-                                Réserver
-                              </button>
-                              <button
-                                onClick={() => toggleItem(item.id, "unavailable")}
-                                className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors ${
-                                  item.status === "unavailable"
-                                    ? "bg-[#EF4444] text-white"
-                                    : "border border-[#E2E8F0] text-[#94A3B8] hover:border-[#EF4444] hover:text-[#EF4444]"
-                                }`}
-                              >
-                                <X size={11} />
-                                Indispo
-                              </button>
+                              {itemsUpdating.has(item.id) ? (
+                                <Loader2 size={14} className="animate-spin text-[#94A3B8]" />
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => toggleItem(item.id, "RESERVED")}
+                                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors ${item.status === "RESERVED"
+                                      ? "bg-[#22C55E] text-white"
+                                      : "border border-[#E2E8F0] text-[#94A3B8] hover:border-[#22C55E] hover:text-[#22C55E]"
+                                      }`}
+                                  >
+                                    <Check size={11} />
+                                    Réserver
+                                  </button>
+                                  <button
+                                    onClick={() => toggleItem(item.id, "CANCELLED")}
+                                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors ${item.status === "CANCELLED"
+                                      ? "bg-[#EF4444] text-white"
+                                      : "border border-[#E2E8F0] text-[#94A3B8] hover:border-[#EF4444] hover:text-[#EF4444]"
+                                      }`}
+                                  >
+                                    <X size={11} />
+                                    Indispo
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -596,8 +640,8 @@ export default function OrderDetailsPage() {
                       {productsLoading
                         ? "Chargement…"
                         : pharmacyProducts.length === 0
-                        ? "Aucun produit"
-                        : "Sélectionner un produit"}
+                          ? "Aucun produit"
+                          : "Sélectionner un produit"}
                     </option>
                     {pharmacyProducts.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -675,11 +719,11 @@ export default function OrderDetailsPage() {
               </div>
 
               {/* Pending warning */}
-              {allItems.some((i) => i.status === "pending") && allItems.length > 0 && (
+              {allItems.some((i) => i.status === "PENDING") && allItems.length > 0 && (
                 <div className="flex items-start gap-2 bg-orange-50 border border-orange-100 text-orange-600 text-[12px] px-3 py-2.5 rounded-xl mt-4">
                   <AlertCircle size={14} className="shrink-0 mt-0.5" />
                   <span>
-                    {allItems.filter((i) => i.status === "pending").length} produit(s) non marqué(s) — ignorés.
+                    {allItems.filter((i) => i.status === "PENDING").length} produit(s) non marqué(s) — ignorés.
                   </span>
                 </div>
               )}
@@ -690,11 +734,10 @@ export default function OrderDetailsPage() {
                   <button
                     onClick={validateOrder}
                     disabled={isValidating || allPending}
-                    className={`w-full py-3 rounded-xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
-                      hasReserved
-                        ? "bg-[#22C55E] hover:bg-[#16A34A] text-white"
-                        : "bg-[#EF4444] hover:bg-red-600 text-white"
-                    }`}
+                    className={`w-full py-3 rounded-xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${hasReserved
+                      ? "bg-[#22C55E] hover:bg-[#16A34A] text-white"
+                      : "bg-[#EF4444] hover:bg-red-600 text-white"
+                      }`}
                   >
                     {isValidating ? (
                       <><Loader2 size={16} className="animate-spin" />Traitement…</>
@@ -808,11 +851,10 @@ export default function OrderDetailsPage() {
       >
         {subMsg && (
           <div
-            className={`flex items-center gap-2 text-[13px] px-4 py-3 rounded-xl mb-4 ${
-              subMsg.ok
-                ? "bg-green-50 border border-green-200 text-green-700"
-                : "bg-red-50 border border-red-100 text-red-600"
-            }`}
+            className={`flex items-center gap-2 text-[13px] px-4 py-3 rounded-xl mb-4 ${subMsg.ok
+              ? "bg-green-50 border border-green-200 text-green-700"
+              : "bg-red-50 border border-red-100 text-red-600"
+              }`}
           >
             {subMsg.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
             {subMsg.text}
@@ -864,6 +906,50 @@ export default function OrderDetailsPage() {
           Ajouter un produit
         </button>
       </Modal>
+
+      {/* ── Prescription Lightbox ── */}
+      {showPrescriptionLightbox && order?.prescription && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+          onClick={() => setShowPrescriptionLightbox(false)}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setShowPrescriptionLightbox(false)}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+          >
+            <X size={20} />
+          </button>
+
+          {/* Download button */}
+          <a
+            href={order.prescription}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-4 right-16 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+            title="Télécharger"
+          >
+            <Download size={18} />
+          </a>
+
+          {/* Image plein écran */}
+          <div
+            className="relative max-w-4xl w-full max-h-[90vh] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={order.prescription}
+              alt="Ordonnance"
+              className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+            />
+            <p className="absolute -bottom-8 left-0 right-0 text-center text-[12px] text-white/50">
+              Cliquez en dehors de l&apos;image pour fermer
+            </p>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

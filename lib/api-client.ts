@@ -398,14 +398,14 @@ class ApiClient {
     }
 
     /**
-     * Updates the status of a single item in an order.
-     * POST /api/v1/officine-order/{orderId}/update-items-status/
+     * Met à jour le statut d'un item de commande.
+     * PATCH /api/v1/order-item/{itemId}/
      */
-    public async updateOrderItemStatus(orderId: string, payload: UpdateItemStatusPayload): Promise<unknown> {
-        console.log('[updateOrderItemStatus] Sending payload:', JSON.stringify(payload), 'for order:', orderId);
-        return this.request(`/api/v1/officine-order/${orderId}/update-items-status/`, {
-            method: 'POST',
-            body: JSON.stringify(payload),
+    public async updateOrderItemStatus(itemId: string, payload: UpdateItemStatusPayload): Promise<unknown> {
+        console.log('[updateOrderItemStatus] item:', itemId, '| status:', payload.status);
+        return this.request(`/api/v1/order-item/${itemId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: payload.status }),
             requiresAuth: true,
         });
     }
@@ -533,6 +533,14 @@ class ApiClient {
     }
 
     /**
+     * Retrieves a single product by its ID (with full FK fields: category, galenic, units).
+     * GET /api/v1/products/{id}/
+     */
+    public async getProductById(productId: string): Promise<Record<string, unknown>> {
+        return this.request<Record<string, unknown>>(`/api/v1/products/${productId}/`, { requiresAuth: true });
+    }
+
+    /**
      * Manages adding a new product. The product must include an 'officine' field to associate it with a pharmacy.
      */
     public async addProduct(data: ProductCreatePayload | FormData): Promise<Product> {
@@ -580,21 +588,41 @@ class ApiClient {
      * Retrieves available product categories.
      */
     public async getCategories(): Promise<Category[]> {
-        return this.request<Category[]>('/api/v1/categories/', { requiresAuth: true });
+        const data = await this.request<unknown>('/api/v1/categories/', { requiresAuth: true });
+        if (Array.isArray(data)) return data as Category[];
+        const paged = data as { results?: Category[] };
+        return paged?.results ?? [];
     }
 
     /**
      * Retrieves available galenic forms.
      */
     public async getGalenics(): Promise<Galenic[]> {
-        return this.request<Galenic[]>('/api/v1/galenics/', { requiresAuth: true });
+        const data = await this.request<unknown>('/api/v1/galenics/', { requiresAuth: true });
+        if (Array.isArray(data)) return data as Galenic[];
+        const paged = data as { results?: Galenic[] };
+        return paged?.results ?? [];
     }
 
     /**
      * Retrieves available units.
      */
     public async getUnits(): Promise<Unit[]> {
-        return this.request<Unit[]>('/api/v1/units/', { requiresAuth: true });
+        const data = await this.request<unknown>('/api/v1/units/', { requiresAuth: true });
+        if (Array.isArray(data)) return data as Unit[];
+        const paged = data as { results?: Unit[] };
+        return paged?.results ?? [];
+    }
+
+    /**
+     * Retrieves all lots (stock entries).
+     * GET /api/v1/lots/
+     */
+    public async getLots(): Promise<Record<string, unknown>[]> {
+        const data = await this.request<unknown>('/api/v1/lots/', { requiresAuth: true });
+        if (Array.isArray(data)) return data as Record<string, unknown>[];
+        const paged = data as { results?: Record<string, unknown>[] };
+        return paged?.results ?? [];
     }
 
     /**
@@ -609,6 +637,18 @@ class ApiClient {
      */
     public async updateProduct(lotId: string, data: Record<string, unknown>): Promise<unknown> {
         return this.request(`/api/v1/lots/${lotId}/`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+            requiresAuth: true,
+        });
+    }
+
+    /**
+     * Updates a product's core info (name, dci, dosage, category, galenic, units).
+     * PUT /api/v1/products/{productId}/
+     */
+    public async updateProductById(productId: string, data: Record<string, unknown>): Promise<unknown> {
+        return this.request(`/api/v1/products/${productId}/`, {
             method: 'PUT',
             body: JSON.stringify(data),
             requiresAuth: true,
@@ -816,9 +856,13 @@ class ApiClient {
 
 
     // --- Wallet ---
-    public async getWallet(): Promise<PharmaWallet | null> {
+    /**
+     * Retrieves the wallet of an officine.
+     * GET /api/v1/officine/{officine_id}/wallet_officine/
+     */
+    public async getWallet(officineId: string): Promise<PharmaWallet | null> {
         try {
-            const data = await this.request<PharmaWallet>('/api/v1/wallet-officine/get_wallet_officine/', { requiresAuth: true });
+            const data = await this.request<PharmaWallet>(`/api/v1/officine/${officineId}/wallet_officine/`, { requiresAuth: true });
             return data ?? null;
         } catch {
             return null;
@@ -899,6 +943,69 @@ class ApiClient {
             body: JSON.stringify({ token, device_type: 'web' }),
             requiresAuth: true,
         });
+    }
+
+    // --- Récupération produit / Remise livreur ---
+    /**
+     * Confirms handover of medications to a delivery driver.
+     * POST /api/v1/scan-qrcode-order/{orderId}/delivery
+     * Body: { "code": "649655" }
+     */
+    public async confirmOrderDelivery(
+        orderId: string,
+        code: string
+    ): Promise<{ message: string;[key: string]: unknown }> {
+        return this.request(`/api/v1/scan-qrcode-order/${orderId}/delivery`, {
+            method: 'POST',
+            body: JSON.stringify({ code }),
+            requiresAuth: true,
+        });
+    }
+
+    // --- Récupération colis par le livreur ---
+    /**
+     * Validates pickup of a package by a delivery driver.
+     * POST /api/v1/scan-qrcode-pickup/
+     * Sends multipart/form-data with:
+     *   - otp_code: the driver's OTP code
+     *   - package_photo (optional): a photo of the package
+     * Returns: { message, officine, mission_status, items: [...] }
+     */
+    public async validatePickupByDriver(
+        otpCode: string,
+        packagePhoto?: File
+    ): Promise<{
+        message?: string;
+        officine?: string;
+        mission_status?: string;
+        items?: Array<{ id: string; name: string; dci: string; galenic: string }>;
+        [key: string]: unknown;
+    }> {
+        const formData = new FormData();
+        formData.append('code', otpCode.trim());
+        if (packagePhoto) {
+            formData.append('file', packagePhoto, packagePhoto.name);
+        }
+
+        const url = `${API_BASE_URL}/api/v1/scan-qrcode-pickup/`;
+        const headers: HeadersInit = {};
+        if (this.accessToken) {
+            headers['Authorization'] = `Bearer ${this.accessToken}`;
+        }
+        console.log(`[API] POST ${url} (validatePickupByDriver)`);
+        const response = await fetch(url, { method: 'POST', headers, body: formData });
+
+        if (!response.ok) {
+            const text = await response.text();
+            let errData: Record<string, unknown> = {};
+            try { errData = JSON.parse(text); } catch { /* not JSON */ }
+            const msg = String(
+                errData.detail ?? errData.error ?? errData.message ?? `Erreur ${response.status}`
+            );
+            throw new Error(msg);
+        }
+        const text = await response.text();
+        return text ? JSON.parse(text) : {};
     }
 }
 
