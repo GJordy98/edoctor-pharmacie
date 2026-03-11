@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { api } from "@/lib/api-client";
-import { PharmaNotification } from "@/lib/types";
+import { PharmaNotification, PharmaWallet } from "@/lib/types";
 
 import {
   Bell, BellDot, BellOff, RefreshCw,
   ShoppingBag, CreditCard, Megaphone,
-  Loader2, X, CheckCheck,
+  Loader2, X, CheckCheck, Wallet,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -24,6 +25,23 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   const [notifications, setNotifications] = useState<PharmaNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Wallet
+  const [wallet, setWallet] = useState<PharmaWallet | null>(null);
+
+  const loadWallet = useCallback(async () => {
+    try {
+      const officineData = typeof window !== 'undefined' ? localStorage.getItem('officine') : null;
+      if (!officineData) return;
+      const o = JSON.parse(officineData);
+      const officineId = o.id || o.officine_id || o.uuid;
+      if (!officineId) return;
+      const data = await api.getWallet(officineId);
+      setWallet(data);
+    } catch {
+      // silent
+    }
+  }, []);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -40,9 +58,13 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
 
   useEffect(() => {
     loadNotifications();
-    const interval = setInterval(() => loadNotifications(), 60_000);
+    loadWallet();
+    const interval = setInterval(() => {
+      loadNotifications();
+      loadWallet();
+    }, 60_000);
     return () => clearInterval(interval);
-  }, [loadNotifications]);
+  }, [loadNotifications, loadWallet]);
 
   /* Fermer en cliquant à l'extérieur */
   useEffect(() => {
@@ -118,6 +140,27 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
             {title && (
               <h1 className="hidden lg:block text-[18px] font-semibold text-[#1E293B]">{title}</h1>
             )}
+          </div>
+
+          {/* ── Wallet badge ── */}
+          <div className="flex items-center gap-3 mr-1">
+            <Link
+              href="/wallet"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#F0FDF4] to-[#DCFCE7] border border-[#BBF7D0] hover:from-[#DCFCE7] hover:to-[#BBF7D0] hover:border-[#86EFAC] hover:shadow-md hover:shadow-green-100 transition-all duration-200 group"
+              title="Voir le portefeuille"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#22C55E] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200">
+                <Wallet size={13} className="text-white" />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="text-[9px] font-semibold text-[#16A34A] uppercase tracking-wider">Solde</span>
+                <span className="text-[13px] font-bold text-[#15803D] mt-0.5">
+                  {wallet
+                    ? `${Number(wallet.balance ?? 0).toLocaleString('fr-FR')} ${wallet.currency ?? 'XAF'}`
+                    : '— XAF'}
+                </span>
+              </div>
+            </Link>
           </div>
 
           {/* ── Cloche notifications ── */}

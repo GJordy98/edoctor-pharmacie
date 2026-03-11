@@ -54,10 +54,10 @@ export default function Sidebar() {
       {/* ── Desktop Sidebar ── */}
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full w-64 bg-white border-r border-[#E2E8F0] z-40">
         {/* Logo PharmaCare */}
-        <div className="px-6 py-5 border-b border-[#E2E8F0]">
-          <Link href="/orders" className="flex items-center gap-3">
+        <div className="h-16 flex items-center px-6 border-b border-[#E2E8F0] shrink-0">
+          <Link href="/orders" className="flex items-center gap-3 w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="e-Dr TIM Pharmacy" style={{ height: 36, width: 'auto' }} className="object-contain" />
+            <img src="/logo.png" alt="e-Dr TIM Pharmacy" style={{ height: 44, width: 'auto' }} className="object-contain" />
             <div>
               <span className="text-[15px] font-bold text-[#1E293B] leading-none">e-Dr TIM</span>
               <p className="text-[11px] text-[#94A3B8] mt-0.5 leading-none">Gestion de pharmacie</p>

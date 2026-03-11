@@ -369,6 +369,7 @@ export interface PharmaWallet {
     id: string;
     balance: number;
     locked_amount: number;
+    currency?: string;
     created_at: string;
     updated_at?: string;
 }
