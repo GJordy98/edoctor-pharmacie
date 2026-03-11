@@ -15,6 +15,7 @@ import {
   RefreshCw,
   FlaskConical,
   Boxes,
+  Archive,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { Category, Galenic, Unit } from '@/lib/types';
@@ -50,11 +51,13 @@ const inputCls =
 function SectionHeader({
   icon: Icon,
   label,
+  sub,
   color = 'text-[#22C55E]',
   bg = 'bg-[#F0FDF4]',
 }: {
   icon: React.ElementType;
   label: string;
+  sub?: string;
   color?: string;
   bg?: string;
 }) {
@@ -63,7 +66,10 @@ function SectionHeader({
       <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
         <Icon size={16} className={color} />
       </div>
-      <h3 className="text-[14px] font-semibold text-[#1E293B]">{label}</h3>
+      <div>
+        <h3 className="text-[14px] font-semibold text-[#1E293B]">{label}</h3>
+        {sub && <span className="text-[11px] text-[#94A3B8]">{sub}</span>}
+      </div>
     </div>
   );
 }
@@ -81,6 +87,10 @@ export default function EditProductPage() {
 
   // ID du produit réel (pas le product-price)
   const [productId, setProductId] = useState<string | null>(null);
+  // ID du lot existant (pour mise à jour)
+  const [lotId, setLotId] = useState<string | null>(null);
+  // Champs requis par l'API lors d'un PUT sur le lot (non modifiables via UI)
+  const [lotMeta, setLotMeta] = useState<{ pharmacy: string; unit: string }>({ pharmacy: '', unit: '' });
 
   // Listes de référence pour les selects
   const [categories, setCategories] = useState<Category[]>([]);
@@ -102,7 +112,16 @@ export default function EditProductPage() {
   // Prix
   const [priceForm, setPriceForm] = useState({
     sale_price: '',
+    purchase_price: '',
     currency: 'XAF',
+    multiplier: '',
+  });
+
+  // Stock / Lot
+  const [lotForm, setLotForm] = useState({
+    quantity: '',
+    expiry_date: '',
+    lot_number: '',
   });
 
   // Image
@@ -141,19 +160,18 @@ export default function EditProductPage() {
 
       setProductId(rawProductId);
 
-      setPriceForm({
+      setPriceForm((p) => ({
+        ...p,
         sale_price: String(priceData.sale_price ?? ''),
         currency:   String(priceData.currency ?? 'XAF'),
-      });
+      }));
 
       // Étape 2 : charger le produit directement pour avoir les vrais UUIDs des FK
-      // GET /api/v1/products/{id}/ retourne category, galenic, unit_base, etc. directement
       let product: Record<string, unknown> = priceProduct ?? {};
       try {
         const fullProduct = await api.getProductById(rawProductId);
         if (fullProduct?.id) product = fullProduct;
       } catch {
-        // Fallback sur les données déjà dans priceProduct
         console.warn('[edit] Could not load full product, using embedded data');
       }
 
@@ -177,6 +195,60 @@ export default function EditProductPage() {
       });
 
       setImagePreview((product.image as string) || null);
+
+      // Étape 3 : charger le lot existant du produit
+      try {
+        const officineData = typeof window !== 'undefined' ? localStorage.getItem('officine') : null;
+        let pharmacyId: string | null = null;
+        if (officineData) {
+          try {
+            const o = JSON.parse(officineData);
+            pharmacyId = o.id || o.officine_id || o.uuid;
+          } catch { /* ignore */ }
+        }
+
+        const allLots = await api.getLots();
+        // Chercher le lot correspondant à ce produit (et cette officine si possible)
+        const matchingLot = allLots.find((lot) => {
+          const lotProductId = (lot.product as Record<string, unknown>)?.id
+            ? String((lot.product as Record<string, unknown>).id)
+            : String(lot.product ?? '');
+          const lotPharmacyId = (lot.pharmacy as Record<string, unknown>)?.id
+            ? String((lot.pharmacy as Record<string, unknown>).id)
+            : String(lot.pharmacy ?? lot.officine ?? '');
+
+          const productMatch = lotProductId === rawProductId;
+          const pharmacyMatch = !pharmacyId || lotPharmacyId === pharmacyId;
+          return productMatch && pharmacyMatch;
+        });
+
+        if (matchingLot) {
+          setLotId(String(matchingLot.id ?? ''));
+
+          // Extraire pharmacy et unit (peuvent être objet ou string/UUID)
+          const lotPharmacyId = (matchingLot.pharmacy as Record<string, unknown>)?.id
+            ? String((matchingLot.pharmacy as Record<string, unknown>).id)
+            : String(matchingLot.pharmacy ?? pharmacyId ?? '');
+          const lotUnitId = (matchingLot.unit as Record<string, unknown>)?.id
+            ? String((matchingLot.unit as Record<string, unknown>).id)
+            : String(matchingLot.unit ?? '');
+
+          setLotMeta({ pharmacy: lotPharmacyId, unit: lotUnitId });
+
+          setLotForm({
+            quantity:    String(matchingLot.quantity ?? ''),
+            expiry_date: String(matchingLot.expiration_date ?? matchingLot.expiry_date ?? ''),
+            lot_number:  String(matchingLot.batch_number ?? matchingLot.lot_number ?? ''),
+          });
+          setPriceForm((p) => ({
+            ...p,
+            purchase_price: String(matchingLot.purchase_price ?? ''),
+          }));
+        }
+      } catch (e) {
+        console.warn('[edit] Could not load lot data:', e);
+      }
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement du produit.');
     } finally {
@@ -233,6 +305,51 @@ export default function EditProductPage() {
       }
 
       await api.updateProductPrice(productPriceId, pricePayload);
+
+      // 3. Mettre à jour ou créer le lot (stock)
+      if (lotForm.quantity) {
+        const officineData = typeof window !== 'undefined' ? localStorage.getItem('officine') : null;
+        let pharmacyId: string | null = null;
+        if (officineData) {
+          try {
+            const o = JSON.parse(officineData);
+            pharmacyId = o.id || o.officine_id || o.uuid;
+          } catch { /* ignore */ }
+        }
+
+        // Champs requis par l'API (PUT full-update)
+        const lotPayload: Record<string, unknown> = {
+          product: productId,
+          pharmacy: lotMeta.pharmacy || pharmacyId,
+          unit: lotMeta.unit || productForm.unit_base,
+          quantity: Number(lotForm.quantity),
+          expiration_date: lotForm.expiry_date ||
+            new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+              .toISOString().split('T')[0],
+          batch_number: lotForm.lot_number || `BATCH-${Date.now()}`,
+          purchase_price: Number(priceForm.purchase_price) || 0,
+        };
+
+        if (lotId) {
+          // Mettre à jour le lot existant (PUT requiert tous les champs)
+          await api.updateProduct(lotId, lotPayload);
+        } else if (pharmacyId) {
+          // Créer un nouveau lot si aucun n'existe
+          await api.createLot({
+            pharmacy: pharmacyId,
+            product: productId,
+            batch_number: lotForm.lot_number || `BATCH-${Date.now()}`,
+            expiration_date:
+              lotForm.expiry_date ||
+              new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+                .toISOString()
+                .split('T')[0],
+            unit: productForm.unit_base,
+            quantity: Number(lotForm.quantity),
+            purchase_price: Number(priceForm.purchase_price) || 0,
+          });
+        }
+      }
 
       setSuccess('Produit mis à jour avec succès !');
       setTimeout(() => router.push('/products_list'), 1500);
@@ -426,7 +543,7 @@ export default function EditProductPage() {
             <SectionHeader icon={Boxes} label="Unités" color="text-blue-500" bg="bg-blue-50" />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Unité de base">
+              <Field label="Unité de base" hint="Plus petite unité">
                 <select
                   className={inputCls + ' cursor-pointer'}
                   value={productForm.unit_base}
@@ -439,7 +556,7 @@ export default function EditProductPage() {
                 </select>
               </Field>
 
-              <Field label="Unité de vente">
+              <Field label="Unité de vente" hint="Vendue au client">
                 <select
                   className={inputCls + ' cursor-pointer'}
                   value={productForm.unit_sale}
@@ -452,7 +569,7 @@ export default function EditProductPage() {
                 </select>
               </Field>
 
-              <Field label="Unité d'achat">
+              <Field label="Unité d'achat" hint="Achetée au fournisseur">
                 <select
                   className={inputCls + ' cursor-pointer'}
                   value={productForm.unit_purchase}
@@ -465,13 +582,25 @@ export default function EditProductPage() {
                 </select>
               </Field>
             </div>
+
+            {/* Multiplicateur */}
+            <Field label="Multiplicateur" hint="Nombre d'unités de base dans 1 unité de vente (ex: 30 comprimés dans 1 boîte)">
+              <input
+                type="number"
+                min="1"
+                className={inputCls}
+                value={priceForm.multiplier}
+                onChange={(e) => setPriceForm(p => ({ ...p, multiplier: e.target.value }))}
+                placeholder="Ex : 30"
+              />
+            </Field>
           </div>
 
           {/* ═══════════════════════════════ */}
-          {/* D. PRIX DE VENTE               */}
+          {/* D. PRIX                         */}
           {/* ═══════════════════════════════ */}
           <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4">
-            <SectionHeader icon={Tag} label="Prix de vente" color="text-amber-500" bg="bg-amber-50" />
+            <SectionHeader icon={Tag} label="Prix" color="text-amber-500" bg="bg-amber-50" />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Prix de vente" required>
@@ -480,7 +609,7 @@ export default function EditProductPage() {
                     type="number"
                     value={priceForm.sale_price}
                     onChange={(e) => setPriceForm(p => ({ ...p, sale_price: e.target.value }))}
-                    placeholder="Ex : 500"
+                    placeholder="Ex : 1500"
                     min="0"
                     step="1"
                     required
@@ -492,18 +621,88 @@ export default function EditProductPage() {
                 </div>
               </Field>
 
-              <Field label="Devise">
-                <select
-                  value={priceForm.currency}
-                  onChange={(e) => setPriceForm(p => ({ ...p, currency: e.target.value }))}
-                  className={inputCls + ' cursor-pointer'}
-                >
-                  <option value="XAF">XAF — Franc CFA</option>
-                  <option value="EUR">EUR — Euro</option>
-                  <option value="USD">USD — Dollar US</option>
-                </select>
+              <Field label="Prix d'achat">
+                <div className="flex">
+                  <input
+                    type="number"
+                    value={priceForm.purchase_price}
+                    onChange={(e) => setPriceForm(p => ({ ...p, purchase_price: e.target.value }))}
+                    placeholder="Ex : 1000"
+                    min="0"
+                    step="1"
+                    className="flex-1 px-3.5 py-2.5 text-[13px] border border-r-0 border-[#E2E8F0] rounded-l-xl text-[#1E293B] bg-white hover:border-[#CBD5E1] focus:border-[#22C55E] focus:ring-2 focus:ring-[#22C55E]/20 focus:outline-none transition-colors"
+                  />
+                  <div className="flex items-center px-3.5 border border-l-0 border-[#E2E8F0] rounded-r-xl bg-[#F8FAFC] text-[13px] font-semibold text-[#64748B] shrink-0">
+                    {priceForm.currency}
+                  </div>
+                </div>
+              </Field>
+
+              <div className="sm:col-span-2">
+                <Field label="Devise">
+                  <select
+                    value={priceForm.currency}
+                    onChange={(e) => setPriceForm(p => ({ ...p, currency: e.target.value }))}
+                    className={inputCls + ' cursor-pointer'}
+                  >
+                    <option value="XAF">XAF — Franc CFA</option>
+                    <option value="EUR">EUR — Euro</option>
+                    <option value="USD">USD — Dollar US</option>
+                  </select>
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          {/* ═══════════════════════════════ */}
+          {/* E. STOCK / LOT                  */}
+          {/* ═══════════════════════════════ */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4">
+            <SectionHeader
+              icon={Archive}
+              label="Stock"
+              sub={lotId ? 'Lot existant' : 'Nouveau lot (optionnel)'}
+              color="text-teal-500"
+              bg="bg-teal-50"
+            />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Quantité" hint="Nombre d'unités en stock">
+                <input
+                  type="number"
+                  min="0"
+                  className={inputCls}
+                  value={lotForm.quantity}
+                  onChange={(e) => setLotForm(p => ({ ...p, quantity: e.target.value }))}
+                  placeholder="Ex : 100"
+                />
+              </Field>
+
+              <Field label="Date de péremption">
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={lotForm.expiry_date}
+                  onChange={(e) => setLotForm(p => ({ ...p, expiry_date: e.target.value }))}
+                />
               </Field>
             </div>
+
+            <Field label="Numéro de lot" hint="Référence du lot (ex: LOT2024-001)">
+              <input
+                type="text"
+                className={inputCls}
+                value={lotForm.lot_number}
+                onChange={(e) => setLotForm(p => ({ ...p, lot_number: e.target.value }))}
+                placeholder="Ex : LOT2024-001"
+              />
+            </Field>
+
+            {!lotId && lotForm.quantity && (
+              <p className="text-[11px] text-amber-600 bg-amber-50 px-3 py-2 rounded-xl border border-amber-100">
+                ⚠️ Aucun lot existant trouvé pour ce produit. Un nouveau lot sera créé.
+              </p>
+            )}
           </div>
 
           {/* ── Boutons du bas ── */}
