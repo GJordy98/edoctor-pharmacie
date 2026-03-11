@@ -39,11 +39,9 @@ export function useProducts(): UseProductsReturn {
       setLoading(true);
       setError(null);
 
-      // Get the pharmacy ID from localStorage
-      // The officine object is stored as JSON, we need to parse it and get the id
       const officineData = localStorage.getItem('officine');
       let pharmacyId: string | null = null;
-      
+
       if (officineData) {
         try {
           const officine = JSON.parse(officineData);
@@ -52,66 +50,17 @@ export function useProducts(): UseProductsReturn {
           console.error('Error parsing officine data:', e);
         }
       }
-      
+
       if (!pharmacyId) {
         setError('ID de pharmacie non trouvé. Veuillez vous reconnecter.');
         setLoading(false);
         return;
       }
 
-      // Use pharmacy-specific endpoint instead of global products
-      const response = await api.getProducts(pharmacyId);
-      
-      // The API returns pharmacy-product associations with nested product data:
-      // { id, product: { id, name, dci, galenic }, sale_price, currency }
-      // We need to flatten this into our Product interface
-      let rawList: unknown[] = [];
-      if (Array.isArray(response)) {
-        rawList = response;
-      } else if (response && typeof response === 'object' && 'results' in response && Array.isArray((response as { results: unknown[] }).results)) {
-        rawList = (response as { results: unknown[] }).results;
-      } else if (response && typeof response === 'object' && 'data' in response && Array.isArray((response as { data: unknown[] }).data)) {
-        rawList = (response as { data: unknown[] }).data;
-      }
-
-      // DEBUG: Show ALL keys and values to find lot ID
-      /* if (rawList.length > 0) {
-        const first = rawList[0] as Record<string, unknown>;
-        const allKeys = Object.keys(first);
-        let debugInfo = 'TOUTES LES CLÉS: ' + allKeys.join(', ') + '\n\n';
-        for (const key of allKeys) {
-          const val = first[key];
-          debugInfo += key + ': ' + JSON.stringify(val) + '\n';
-        }
-        // alert(debugInfo); // Commented out to stop popup
-      } */
-
-      // Transform nested structure to flat Product objects
-      const productList: Product[] = rawList.map((item: unknown) => {
-        const entry = item as Record<string, unknown>;
-        const nestedProduct = entry.product as Record<string, unknown> | undefined;
-        
-        return {
-          id: (entry.id as string) || '',
-          name: (nestedProduct?.name as string) || '',
-          dci: (nestedProduct?.dci as string) || '',
-          dosage: (nestedProduct?.dosage as string) || '',
-          category: (nestedProduct?.category as string) || '',
-          galenic: (nestedProduct?.galenic as string) || '',
-          unit_base: (nestedProduct?.unit_base as string) || '',
-          unit_sale: (nestedProduct?.unit_sale as string) || '',
-          unit_purchase: (nestedProduct?.unit_purchase as string) || '',
-          galenic_detail: nestedProduct?.galenic 
-            ? { id: '', name: nestedProduct.galenic as string } 
-            : undefined,
-          category_detail: nestedProduct?.category_detail as Product['category_detail'],
-          unit_base_detail: nestedProduct?.unit_base_detail as Product['unit_base_detail'],
-          sale_price: entry.sale_price ? parseFloat(entry.sale_price as string) : undefined,
-          currency: (entry.currency as string) || 'XAF',
-        } as Product;
-      });
-
-      setProducts(productList);
+      // api.getProducts() retourne déjà des Product[] correctement aplatis
+      // (champs name, dci, dosage, sale_price au niveau racine)
+      const productList = await api.getProducts(pharmacyId);
+      setProducts(Array.isArray(productList) ? productList : []);
 
     } catch (err: unknown) {
       const error = err as Error;

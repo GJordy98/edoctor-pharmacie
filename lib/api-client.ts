@@ -360,7 +360,10 @@ class ApiClient {
      * Retrieves base details for a specific order (metadata: patient, status, total…).
      */
     public async getOrderById(orderId: string): Promise<APIOrderDetailsResponse['order']> {
-        return this.request<APIOrderDetailsResponse['order']>(`/api/v1/officine-order/${orderId}/`);
+        const data = await this.request<Record<string, unknown>>(`/api/v1/officine-order/${orderId}/`);
+        console.log("[getOrderById] RAW response:", JSON.stringify(data, null, 2));
+        // Le backend retourne directement l'objet plat — pas besoin d'aplatir
+        return data as APIOrderDetailsResponse['order'];
     }
 
     /**
@@ -378,6 +381,9 @@ class ApiClient {
             this.getOrderById(orderId),
             this.getOrderItems(orderId),
         ]);
+
+        // ✅ LOG — voir la réponse brute du backend
+        console.log("[getOrderDetails] RAW orderData:", JSON.stringify(orderData, null, 2));
 
         // Normalise items: the endpoint may return an array directly or { items: [] }
         let itemsArray: import('@/lib/types').OrderItem[] = [];
@@ -529,7 +535,43 @@ class ApiClient {
      * Manages fetching products for a specific pharmacy.
      */
     public async getProducts(pharmacyId: string): Promise<Product[]> {
-        return this.request<Product[]>(`/api/v1/officine/${pharmacyId}/list-product/`, { requiresAuth: true });
+        const raw = await this.request<unknown>(`/api/v1/officine/${pharmacyId}/list-product/`, { requiresAuth: true });
+
+        // L'endpoint retourne une liste de product-prices:
+        // [{ id: <product_price_id>, product: { id, name, dci, dosage, ... }, sale_price, currency, ... }]
+        // On aplatit pour exposer les champs du produit réel au niveau racine.
+        const list: unknown[] = Array.isArray(raw)
+            ? raw
+            : Array.isArray((raw as { results?: unknown[] })?.results)
+                ? (raw as { results: unknown[] }).results
+                : [];
+
+        return list.map((item: unknown) => {
+            const entry = item as Record<string, unknown>;
+            const nested = (entry.product ?? {}) as Record<string, unknown>;
+
+            return {
+                // On stocke l'id du product-price dans price_id pour référence,
+                // et on utilise l'id du produit réel comme id principal
+                id: (nested.id as string) || (entry.id as string) || '',
+                price_id: (entry.id as string) || '',   // ID du product-price (pour les mises à jour de prix)
+                name: (nested.name as string) || '',
+                dci: (nested.dci as string) || '',
+                dosage: (nested.dosage as string) || '',
+                category: (nested.category as string) || '',
+                galenic: (nested.galenic as string) || '',
+                unit_base: (nested.unit_base as string) || '',
+                unit_sale: (nested.unit_sale as string) || '',
+                unit_purchase: (nested.unit_purchase as string) || '',
+                galenic_detail: nested.galenic_detail as Product['galenic_detail'],
+                category_detail: nested.category_detail as Product['category_detail'],
+                unit_base_detail: nested.unit_base_detail as Product['unit_base_detail'],
+                unit_sale_detail: nested.unit_sale_detail as Product['unit_sale_detail'],
+                sale_price: entry.sale_price !== undefined ? parseFloat(String(entry.sale_price)) : undefined,
+                currency: (entry.currency as string) || 'XAF',
+                image: (nested.image as string | null) || null,
+            } as Product;
+        });
     }
 
     /**
@@ -749,8 +791,7 @@ class ApiClient {
      */
     public async generateSubOrder(data: SubOrderPayload): Promise<unknown> {
         const payload = {
-            officine_order: data.order_id,
-            officine: data.officine_id,
+            officine_order: data.officine_order_id,  // ✅
             product: data.items.map(({ product_id, quantity }) => ({ product_id, quantity })),
         };
         return this.request('/api/v1/sub-order-item-officine/', {
@@ -918,6 +959,38 @@ class ApiClient {
         } catch {
             return [];
         }
+    }
+
+    /**
+     * Retrieves sub-order items created by the pharmacist for this order.
+     * GET /api/v1/sub-order-item-officine/?officine_order={order_id}
+     * These are separate items proposed by the pharmacy after reviewing the prescription.
+     */
+    public async getPatientSubOrderItems(orderId: string): Promise<PatientOrderItem[]> {
+        try {
+            const data = await this.request<unknown>(
+                `/api/v1/sub-order-item-officine/?officine_order=${orderId}`,
+                { requiresAuth: true }
+            );
+            if (Array.isArray(data)) return data as PatientOrderItem[];
+            const nested = data as { items?: PatientOrderItem[]; results?: PatientOrderItem[] };
+            return nested?.items ?? nested?.results ?? [];
+        } catch {
+            return [];
+        }
+    }
+
+    /**
+     * Patient validates (or rejects) the sub-order proposed by the pharmacist.
+     * POST /api/v1/validated-order-by-patient/
+     * Body: { order_id, status: "VALIDATED" | "REJECTED" }
+     */
+    public async validateOrderByPatient(orderId: string, status: 'VALIDATED' | 'REJECTED'): Promise<unknown> {
+        return this.request('/api/v1/validated-order-by-patient/', {
+            method: 'POST',
+            body: JSON.stringify({ order_id: orderId, status }),
+            requiresAuth: true,
+        });
     }
 
     /**

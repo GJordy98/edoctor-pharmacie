@@ -329,14 +329,13 @@ export interface ScheduleResponse {
 export interface SubOrderItemPayload {
     product_id: string;
     quantity: number;
+    unit_price?: number;   // prix affiché localement, non envoyé à l'API
 }
 
 export interface SubOrderPayload {
-    order_id: string;      // mapped to officine_order in API payload
-    officine_id: string;   // mapped to officine in API payload
-    items: SubOrderItemPayload[];  // mapped to product[] in API payload
+    officine_order_id: string;  // ✅ renommé
+    items: SubOrderItemPayload[];
 }
-
 // --- Facture ---
 export interface InvoiceResponse {
     id: string;

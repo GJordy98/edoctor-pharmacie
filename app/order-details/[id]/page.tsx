@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ArrowLeft,
   User,
@@ -64,10 +63,12 @@ interface OrderData {
   total_amount: number;
 }
 
-interface SubItem {
+interface SubCartItem {
   product_id: string;
+  name: string;
   quantity: number;
   unit_price: number;
+  total: number;
 }
 
 /* ── modal wrapper ── */
@@ -96,7 +97,6 @@ function Modal({
         className={`bg-white rounded-2xl shadow-xl w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[90vh] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0] shrink-0">
           <h3 className="text-[15px] font-semibold text-[#1E293B]">{title}</h3>
           <button
@@ -106,9 +106,7 @@ function Modal({
             <X size={16} />
           </button>
         </div>
-        {/* body */}
         <div className="overflow-y-auto flex-1 px-6 py-4">{children}</div>
-        {/* footer */}
         {footer && (
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-[#E2E8F0] shrink-0">
             {footer}
@@ -145,6 +143,9 @@ export default function OrderDetailsPage() {
   const [isValidating, setIsValidating] = useState(false);
   const [itemsUpdating, setItemsUpdating] = useState<Set<number | string>>(new Set());
 
+  // ✅ FIX — ID de l'officine-order (différent de l'order principal)
+  const [officineOrderId, setOfficineOrderId] = useState("");
+
   // Products for prescription cases
   const [pharmacyProducts, setPharmacyProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -168,9 +169,9 @@ export default function OrderDetailsPage() {
 
   // Sub-order modal
   const [showSubModal, setShowSubModal] = useState(false);
-  const [subItems, setSubItems] = useState<SubItem[]>([
-    { product_id: "", quantity: 1, unit_price: 0 },
-  ]);
+  const [subCart, setSubCart] = useState<SubCartItem[]>([]);
+  const [subSelId, setSubSelId] = useState("");
+  const [subSelQty, setSubSelQty] = useState(1);
   const [subLoading, setSubLoading] = useState(false);
   const [subMsg, setSubMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -204,32 +205,49 @@ export default function OrderDetailsPage() {
     setIsLoading(true);
     try {
       const data = await api.getOrderDetails(orderId);
+
       if (data.order) {
-        const p = data.order.patient;
+        const rawOfficineOrder = data.order as Record<string, unknown>;
+        const innerOrder = (rawOfficineOrder.order as Record<string, unknown>) ?? rawOfficineOrder;
+        const p = innerOrder.patient as Record<string, unknown> | undefined;
+
+        // ✅ "89e1dee5..." — c'est bien l'officine_order_id
+        const resolvedOfficineOrderId = rawOfficineOrder.id as string;
+        setOfficineOrderId(resolvedOfficineOrderId);
+
+        console.log("[OrderDetails] officineOrderId:", resolvedOfficineOrderId);
+        console.log("[OrderDetails] orderId (URL):", orderId);
+
         setOrder({
-          id: data.order.id as string,
+          id: resolvedOfficineOrderId,
           patientName: `${p?.first_name ?? ""} ${p?.last_name ?? ""}`.trim() || "Client",
-          patientPhone: p?.phone ?? "",
-          date: data.order.created_at
-            ? new Date(data.order.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+          patientPhone: (p?.phone as string) ?? "",
+          date: (innerOrder.created_at as string)
+            ? new Date(innerOrder.created_at as string).toLocaleDateString("fr-FR", {
+              day: "2-digit", month: "short", year: "numeric",
+            })
             : "—",
-          status: data.order.status ?? "",
-          payment_status: data.order.payment_status ?? "",
-          prescription: data.order.prescription ?? null,
-          total_amount: parseFloat(String(data.order.total_amount)) || 0,
+          status: (rawOfficineOrder.status as string) ?? "",
+          payment_status: (innerOrder.payment_status as string) ?? "",
+          prescription: (innerOrder.prescription as string | null) ?? null,
+          total_amount: parseFloat(String(innerOrder.total_amount)) || 0,
         });
       }
+
       if (data.items) {
-        const mapped: OrderItem[] = (data.items as unknown as ApiOrderItem[]).map((item) => ({
-          id: item.id,
-          name: item.product
-            ? `${item.product.name ?? ""} — ${item.product.dci ?? ""}`.replace(/ — $/, "")
-            : item.product_name || "Produit",
-          quantity: parseFloat(String(item.quantity)),
-          price: parseFloat(String(item.unit_price ?? item.price ?? 0)),
-          total: parseFloat(String(item.line_total ?? item.total_price ?? 0)),
-          status: (item.status?.toUpperCase() || "PENDING") as OrderItem["status"],
-        }));
+        const mapped: OrderItem[] = (data.items as unknown as ApiOrderItem[]).map((item) => {
+          const productName = item.product
+            ? [item.product.name, item.product.dci].filter(Boolean).join(" — ")
+            : item.product_name || "Produit";
+          return {
+            id: item.id,
+            name: productName || "Produit",
+            quantity: parseFloat(String(item.quantity)),
+            price: parseFloat(String(item.unit_price ?? item.price ?? 0)),
+            total: parseFloat(String(item.line_total ?? item.total_price ?? 0)),
+            status: (item.status?.toUpperCase() || "PENDING") as OrderItem["status"],
+          };
+        });
         setItems(mapped);
       }
     } catch {
@@ -251,22 +269,28 @@ export default function OrderDetailsPage() {
         ? 2
         : 3;
 
-  // PATCH /api/v1/order-item/{item.id}/ — body: { status }
+  // Toggle item status
   const toggleItem = async (itemId: number | string, newStatus: "RESERVED" | "CANCELLED") => {
     if (itemsUpdating.has(itemId)) return;
     const previousItems = items;
-    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, status: newStatus } as OrderItem : i)));
+    setItems((prev) =>
+      prev.map((i) => (i.id === itemId ? ({ ...i, status: newStatus } as OrderItem) : i))
+    );
     setItemsUpdating((s) => new Set(s).add(itemId));
     try {
-      await api.updateOrderItemStatus(String(itemId), {
-        id: itemId,
-        status: newStatus,
-      });
+      await api.updateOrderItemStatus(String(itemId), { id: itemId, status: newStatus });
     } catch (err) {
       setItems(previousItems);
-      showToast(err instanceof Error ? err.message : "Erreur lors de la mise à jour du produit.", "error");
+      showToast(
+        err instanceof Error ? err.message : "Erreur lors de la mise à jour du produit.",
+        "error"
+      );
     } finally {
-      setItemsUpdating((s) => { const next = new Set(s); next.delete(itemId); return next; });
+      setItemsUpdating((s) => {
+        const next = new Set(s);
+        next.delete(itemId);
+        return next;
+      });
     }
   };
 
@@ -279,13 +303,20 @@ export default function OrderDetailsPage() {
     const label = [p.name, p.dci, p.dosage].filter(Boolean).join(" — ");
     setAddedProducts((prev) => [
       ...prev,
-      { id: Date.now(), name: label, quantity, price: unitPrice, total: unitPrice * quantity, status: "RESERVED" as const },
+      {
+        id: Date.now(),
+        name: label,
+        quantity,
+        price: unitPrice,
+        total: unitPrice * quantity,
+        status: "RESERVED" as const,
+      },
     ]);
     setSelectedProductId("");
     setQuantity(1);
   };
 
-  // Validate order
+  // Validate order (cas 1 & 3)
   const validateOrder = async () => {
     const all = [...items, ...addedProducts];
     if (all.every((i) => i.status === "PENDING")) {
@@ -296,7 +327,7 @@ export default function OrderDetailsPage() {
     const finalStatus = hasReserved ? "RESERVED" : "REJECTED";
     setIsValidating(true);
     try {
-      await api.validateOrder(orderId, { status: finalStatus });
+      await api.validateOrder(officineOrderId || orderId, { status: finalStatus });
       showToast(
         hasReserved ? "Commande validée avec succès !" : "Commande rejetée.",
         hasReserved ? "success" : "error"
@@ -317,7 +348,9 @@ export default function OrderDetailsPage() {
       const res = await api.getInvoice({ order_id: orderId });
       setInvoice(res);
     } catch (err) {
-      setInvoiceError(err instanceof Error ? err.message : "Erreur lors de la récupération de la facture.");
+      setInvoiceError(
+        err instanceof Error ? err.message : "Erreur lors de la récupération de la facture."
+      );
     } finally {
       setInvoiceLoading(false);
     }
@@ -353,33 +386,89 @@ export default function OrderDetailsPage() {
       const res = await api.getOrderQrCode(orderId);
       setQrData(res);
     } catch (err) {
-      setQrError(err instanceof Error ? err.message : "Erreur lors de la récupération du QR code.");
+      setQrError(
+        err instanceof Error ? err.message : "Erreur lors de la récupération du QR code."
+      );
     } finally {
       setQrLoading(false);
     }
   };
 
-  // Sub-order
-  const addSubItem = () => setSubItems((p) => [...p, { product_id: "", quantity: 1, unit_price: 0 }]);
-  const removeSubItem = (i: number) => setSubItems((p) => p.filter((_, idx) => idx !== i));
-  const updateSubItem = (i: number, field: keyof SubItem, value: string | number) => {
-    setSubItems((p) => p.map((it, idx) => (idx === i ? { ...it, [field]: value } : it)));
+  // Sub-order — gestion du panier
+  const handleAddToSubCart = () => {
+    if (!subSelId) return;
+    const product = pharmacyProducts.find((p) => p.id === subSelId);
+    if (!product) return;
+    const unitPrice = product.sale_price ?? 0;
+    const label = [product.name, product.dci, product.dosage].filter(Boolean).join(" — ");
+    setSubCart((prev) => {
+      const existing = prev.findIndex((it) => it.product_id === subSelId);
+      if (existing !== -1) {
+        return prev.map((it, idx) =>
+          idx === existing
+            ? {
+              ...it,
+              quantity: it.quantity + subSelQty,
+              total: unitPrice * (it.quantity + subSelQty),
+            }
+            : it
+        );
+      }
+      return [
+        ...prev,
+        {
+          product_id: subSelId,
+          name: label,
+          quantity: subSelQty,
+          unit_price: unitPrice,
+          total: unitPrice * subSelQty,
+        },
+      ];
+    });
+    setSubSelId("");
+    setSubSelQty(1);
   };
 
+  const removeFromSubCart = (productId: string) =>
+    setSubCart((prev) => prev.filter((it) => it.product_id !== productId));
+
+  // ✅ FIX PRINCIPAL — handleSubmitSubOrder utilise officineOrderId
   const handleSubmitSubOrder = async () => {
     setSubMsg(null);
-    const valid = subItems.filter((it) => it.product_id.trim());
-    if (!valid.length) {
-      setSubMsg({ text: "Ajoutez au moins un produit.", ok: false });
+
+    if (!subCart.length) {
+      setSubMsg({ text: "Ajoutez au moins un produit au panier.", ok: false });
       return;
     }
+
+    if (!officineOrderId) {
+      setSubMsg({ text: "ID de la commande officine introuvable. Rechargez la page.", ok: false });
+      return;
+    }
+
     setSubLoading(true);
     try {
-      await api.generateSubOrder({ order_id: orderId, officine_id: officineId, items: valid });
-      setSubMsg({ text: "Sous-commande générée avec succès.", ok: true });
-      setSubItems([{ product_id: "", quantity: 1, unit_price: 0 }]);
+      // ✅ Le backend gère la validation automatiquement
+      await api.generateSubOrder({
+        officine_order_id: officineOrderId,
+        items: subCart.map(({ product_id, quantity }) => ({ product_id, quantity })),
+      });
+
+      setSubMsg({ text: "Commande envoyée avec succès !", ok: true });
+      setSubCart([]);
+      setSubSelId("");
+      setSubSelQty(1);
+
+      setTimeout(() => {
+        setShowSubModal(false);
+        setSubMsg(null);
+        loadOrder();
+      }, 1500);
     } catch (err) {
-      setSubMsg({ text: err instanceof Error ? err.message : "Erreur.", ok: false });
+      setSubMsg({
+        text: err instanceof Error ? err.message : "Erreur lors de l'envoi.",
+        ok: false,
+      });
     } finally {
       setSubLoading(false);
     }
@@ -426,7 +515,9 @@ export default function OrderDetailsPage() {
                 <span className="font-mono text-[#22C55E]">#{orderId.slice(0, 8)}</span>
               </h2>
               <nav className="flex items-center gap-1 text-[12px] text-[#94A3B8] mt-0.5">
-                <Link href="/orders" className="hover:text-[#22C55E]">Commandes</Link>
+                <Link href="/orders" className="hover:text-[#22C55E]">
+                  Commandes
+                </Link>
                 <span>/</span>
                 <span>Détails</span>
               </nav>
@@ -439,7 +530,11 @@ export default function OrderDetailsPage() {
               disabled={invoiceLoading}
               className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium border border-[#E2E8F0] rounded-xl text-[#1E293B] hover:border-[#22C55E] hover:text-[#22C55E] transition-colors disabled:opacity-50"
             >
-              {invoiceLoading ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+              {invoiceLoading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <FileText size={14} />
+              )}
               Facture
             </button>
             <button
@@ -487,32 +582,34 @@ export default function OrderDetailsPage() {
               disabled={pdfLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold bg-[#22C55E] text-white rounded-lg hover:bg-[#16A34A] transition-colors disabled:opacity-50"
             >
-              {pdfLoading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+              {pdfLoading ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Download size={12} />
+              )}
               PDF
             </button>
           </div>
         )}
 
-        {/* ── Case badge ── */}
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#F0FDF4] border border-green-200 rounded-full text-[12px] font-semibold text-[#22C55E]">
-          CAS {orderCase} :{" "}
-          {orderCase === 1
-            ? "Produits uniquement"
-            : orderCase === 2
-              ? "Ordonnance uniquement"
-              : "Ordonnance + Produits"}
-        </div>
-
         {/* ── Info cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <InfoCard label="Patient" value={order?.patientName || "—"} icon={User} />
           <InfoCard label="Date" value={order?.date || "—"} icon={Calendar} />
-          <InfoCard label="Statut" value={<StatusBadge status={order?.status || ""} />} icon={CheckCircle2} />
-          <InfoCard label="Paiement" value={<StatusBadge status={order?.payment_status || ""} />} icon={FileText} />
+          <InfoCard
+            label="Statut"
+            value={<StatusBadge status={order?.status || ""} />}
+            icon={CheckCircle2}
+          />
+          <InfoCard
+            label="Paiement"
+            value={<StatusBadge status={order?.payment_status || ""} />}
+            icon={FileText}
+          />
         </div>
 
         {/* ── Main content ── */}
-        <div className={`grid gap-5 ${orderCase === 1 ? "grid-cols-1 lg:grid-cols-3" : "grid-cols-1 lg:grid-cols-3"}`}>
+        <div className="grid gap-5 grid-cols-1 lg:grid-cols-3">
 
           {/* Left: prescription + items */}
           <div className="lg:col-span-2 space-y-5">
@@ -535,7 +632,6 @@ export default function OrderDetailsPage() {
                     <Download size={14} />
                   </a>
                 </div>
-                {/* Thumbnail — cliquer pour ouvrir la lightbox */}
                 <button
                   type="button"
                   onClick={() => setShowPrescriptionLightbox(true)}
@@ -543,14 +639,12 @@ export default function OrderDetailsPage() {
                   title="Cliquer pour agrandir"
                 >
                   <div className="relative w-full max-w-[360px]">
-                    <Image
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
                       src={order.prescription}
                       alt="Ordonnance"
-                      width={360}
-                      height={500}
                       className="rounded-lg shadow-sm object-contain w-full max-h-[320px] group-hover:opacity-90 transition-opacity"
                     />
-                    {/* Overlay hint */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="bg-black/50 backdrop-blur-sm rounded-xl px-3 py-2 flex items-center gap-2 text-white text-[12px] font-semibold">
                         <ZoomIn size={14} />
@@ -558,7 +652,9 @@ export default function OrderDetailsPage() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-[11px] text-[#94A3B8]">Cliquez pour afficher en plein écran</p>
+                  <p className="text-[11px] text-[#94A3B8]">
+                    Cliquez pour afficher en plein écran
+                  </p>
                 </button>
               </div>
             )}
@@ -567,26 +663,44 @@ export default function OrderDetailsPage() {
             {(orderCase === 1 || orderCase === 3) && items.length > 0 && (
               <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-[#E2E8F0]">
-                  <h3 className="text-[14px] font-semibold text-[#1E293B]">Produits de la commande</h3>
+                  <h3 className="text-[14px] font-semibold text-[#1E293B]">
+                    Produits de la commande
+                  </h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[13px]">
                     <thead>
                       <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                        <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Produit</th>
-                        <th className="text-center px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Qté</th>
-                        <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">P.U.</th>
-                        <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Total</th>
-                        <th className="text-right px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Disponibilité</th>
+                        <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                          Produit
+                        </th>
+                        <th className="text-center px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                          Qté
+                        </th>
+                        <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                          P.U.
+                        </th>
+                        <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                          Total
+                        </th>
+                        <th className="text-right px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                          Disponibilité
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F1F5F9]">
                       {items.map((item) => (
                         <tr key={item.id} className="hover:bg-[#F8FAFC] transition-colors">
                           <td className="px-4 py-3 font-medium text-[#1E293B]">{item.name}</td>
-                          <td className="px-4 py-3 text-center text-[#64748B]">{item.quantity}</td>
-                          <td className="px-4 py-3 text-[#64748B]">{item.price.toLocaleString("fr-FR")} XAF</td>
-                          <td className="px-4 py-3 font-semibold text-[#1E293B]">{item.total.toLocaleString("fr-FR")} XAF</td>
+                          <td className="px-4 py-3 text-center text-[#64748B]">
+                            {item.quantity}
+                          </td>
+                          <td className="px-4 py-3 text-[#64748B]">
+                            {item.price.toLocaleString("fr-FR")} XAF
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-[#1E293B]">
+                            {item.total.toLocaleString("fr-FR")} XAF
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1.5">
                               {itemsUpdating.has(item.id) ? (
@@ -628,7 +742,9 @@ export default function OrderDetailsPage() {
             {/* Add product (cases 2 & 3) */}
             {(orderCase === 2 || orderCase === 3) && (
               <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-                <h3 className="text-[14px] font-semibold text-[#1E293B] mb-3">Ajouter des produits</h3>
+                <h3 className="text-[14px] font-semibold text-[#1E293B] mb-3">
+                  Ajouter des produits
+                </h3>
                 <div className="flex gap-2 flex-wrap">
                   <select
                     value={selectedProductId}
@@ -673,7 +789,9 @@ export default function OrderDetailsPage() {
           {/* Right: recap */}
           <div className="lg:col-span-1">
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 sticky top-20">
-              <h3 className="text-[14px] font-semibold text-[#1E293B] mb-4 text-center">Récapitulatif</h3>
+              <h3 className="text-[14px] font-semibold text-[#1E293B] mb-4 text-center">
+                Récapitulatif
+              </h3>
 
               {/* Added products list */}
               {addedProducts.length > 0 && (
@@ -683,7 +801,10 @@ export default function OrderDetailsPage() {
                   </p>
                   <div className="space-y-2">
                     {addedProducts.map((p) => (
-                      <div key={p.id} className="flex items-center justify-between text-[13px]">
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between text-[13px]"
+                      >
                         <div>
                           <p className="text-[#1E293B] font-medium leading-snug">{p.name}</p>
                           <p className="text-[#94A3B8] text-[11px]">Qté: {p.quantity}</p>
@@ -702,12 +823,16 @@ export default function OrderDetailsPage() {
               <div className="space-y-2 text-[13px]">
                 <div className="flex justify-between">
                   <span className="text-[#94A3B8]">Total commande</span>
-                  <span className="font-medium">{reservedTotal.toLocaleString("fr-FR")} XAF</span>
+                  <span className="font-medium">
+                    {reservedTotal.toLocaleString("fr-FR")} XAF
+                  </span>
                 </div>
                 {addedProducts.length > 0 && (
                   <div className="flex justify-between">
                     <span className="text-[#94A3B8]">Total ajouts</span>
-                    <span className="font-medium">{addedTotal.toLocaleString("fr-FR")} XAF</span>
+                    <span className="font-medium">
+                      {addedTotal.toLocaleString("fr-FR")} XAF
+                    </span>
                   </div>
                 )}
                 <div className="border-t border-[#E2E8F0] pt-2 flex justify-between">
@@ -723,7 +848,8 @@ export default function OrderDetailsPage() {
                 <div className="flex items-start gap-2 bg-orange-50 border border-orange-100 text-orange-600 text-[12px] px-3 py-2.5 rounded-xl mt-4">
                   <AlertCircle size={14} className="shrink-0 mt-0.5" />
                   <span>
-                    {allItems.filter((i) => i.status === "PENDING").length} produit(s) non marqué(s) — ignorés.
+                    {allItems.filter((i) => i.status === "PENDING").length} produit(s) non
+                    marqué(s) — ignorés.
                   </span>
                 </div>
               )}
@@ -740,11 +866,20 @@ export default function OrderDetailsPage() {
                       }`}
                   >
                     {isValidating ? (
-                      <><Loader2 size={16} className="animate-spin" />Traitement…</>
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Traitement…
+                      </>
                     ) : hasReserved ? (
-                      <><CheckCircle2 size={16} />Valider la commande</>
+                      <>
+                        <CheckCircle2 size={16} />
+                        Valider la commande
+                      </>
                     ) : (
-                      <><XCircle size={16} />Rejeter la commande</>
+                      <>
+                        <XCircle size={16} />
+                        Rejeter la commande
+                      </>
                     )}
                   </button>
                 ) : (
@@ -768,7 +903,12 @@ export default function OrderDetailsPage() {
       <Modal
         open={showQrModal}
         onClose={() => setShowQrModal(false)}
-        title={<span className="flex items-center gap-2"><QrCode size={16} />QR Code de la commande</span>}
+        title={
+          <span className="flex items-center gap-2">
+            <QrCode size={16} />
+            QR Code de la commande
+          </span>
+        }
         footer={
           <>
             <button
@@ -802,7 +942,7 @@ export default function OrderDetailsPage() {
             </div>
           ) : qrData ? (
             <>
-              {(qrData.qr_code_url || qrData.qr_code || qrData.image) ? (
+              {qrData.qr_code_url || qrData.qr_code || qrData.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={qrData.qr_code_url ?? qrData.qr_code ?? qrData.image}
@@ -827,28 +967,50 @@ export default function OrderDetailsPage() {
       {/* ── Sub-order Modal ── */}
       <Modal
         open={showSubModal}
-        onClose={() => { setShowSubModal(false); setSubMsg(null); }}
-        title={<span className="flex items-center gap-2"><PackagePlus size={16} />Générer une sous-commande</span>}
+        onClose={() => {
+          setShowSubModal(false);
+          setSubMsg(null);
+          setSubCart([]);
+          setSubSelId("");
+          setSubSelQty(1);
+        }}
+        title={
+          <span className="flex items-center gap-2">
+            <PackagePlus size={16} />
+            Créer une commande pour le patient
+          </span>
+        }
         wide
         footer={
           <>
             <button
-              onClick={() => { setShowSubModal(false); setSubMsg(null); }}
+              onClick={() => {
+                setShowSubModal(false);
+                setSubMsg(null);
+                setSubCart([]);
+                setSubSelId("");
+                setSubSelQty(1);
+              }}
               className="px-4 py-2 text-[13px] border border-[#E2E8F0] rounded-xl text-[#94A3B8] hover:text-[#1E293B] transition-colors"
             >
               Annuler
             </button>
             <button
               onClick={handleSubmitSubOrder}
-              disabled={subLoading}
+              disabled={subLoading || subCart.length === 0}
               className="flex items-center gap-2 px-4 py-2 text-[13px] bg-[#22C55E] text-white rounded-xl hover:bg-[#16A34A] transition-colors disabled:opacity-50"
             >
-              {subLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              Générer
+              {subLoading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <CheckCircle2 size={14} />
+              )}
+              Envoyer la commande
             </button>
           </>
         }
       >
+        {/* Message de retour */}
         {subMsg && (
           <div
             className={`flex items-center gap-2 text-[13px] px-4 py-3 rounded-xl mb-4 ${subMsg.ok
@@ -860,51 +1022,129 @@ export default function OrderDetailsPage() {
             {subMsg.text}
           </div>
         )}
-        <p className="text-[13px] text-[#94A3B8] mb-4">
-          Ajoutez les produits à préparer pour le patient en saisissant leur identifiant, quantité et prix unitaire.
+
+        <p className="text-[13px] text-[#64748B] mb-4 leading-relaxed">
+          Sélectionnez les produits de votre stock disponibles pour répondre à cette ordonnance,
+          puis envoyez la commande au patient.
         </p>
-        <div className="space-y-2">
-          {subItems.map((item, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="UUID du produit"
-                value={item.product_id}
-                onChange={(e) => updateSubItem(idx, "product_id", e.target.value)}
-                className="flex-1 px-3 py-2 text-[13px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E]"
-              />
-              <input
-                type="number"
-                min={1}
-                value={item.quantity}
-                onChange={(e) => updateSubItem(idx, "quantity", parseInt(e.target.value) || 1)}
-                className="w-16 px-2 py-2 text-[13px] text-center border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E]"
-              />
-              <input
-                type="number"
-                min={0}
-                value={item.unit_price}
-                onChange={(e) => updateSubItem(idx, "unit_price", parseFloat(e.target.value) || 0)}
-                className="w-24 px-2 py-2 text-[13px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E]"
-                placeholder="Prix"
-              />
-              <button
-                onClick={() => removeSubItem(idx)}
-                disabled={subItems.length === 1}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#EF4444] hover:bg-red-50 transition-colors disabled:opacity-30"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
+
+        {/* Zone de sélection produit */}
+        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 mb-4">
+          <p className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide mb-3">
+            Ajouter un produit
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <select
+              value={subSelId}
+              onChange={(e) => setSubSelId(e.target.value)}
+              disabled={productsLoading || !!subMsg?.ok}
+              className="flex-1 min-w-48 px-3 py-2.5 text-[13px] border border-[#E2E8F0] rounded-xl bg-white text-[#1E293B] focus:outline-none focus:border-[#22C55E] cursor-pointer disabled:opacity-60"
+            >
+              <option value="">
+                {productsLoading
+                  ? "Chargement…"
+                  : pharmacyProducts.length === 0
+                    ? "Aucun produit en stock"
+                    : "— Choisir un produit —"}
+              </option>
+              {pharmacyProducts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {[p.name, p.dci, p.dosage].filter(Boolean).join(" — ")}
+                  {p.sale_price ? ` · ${p.sale_price.toLocaleString("fr-FR")} XAF` : ""}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={1}
+              value={subSelQty}
+              onChange={(e) => setSubSelQty(Math.max(1, parseInt(e.target.value) || 1))}
+              disabled={!!subMsg?.ok}
+              className="w-20 px-3 py-2.5 text-[13px] border border-[#E2E8F0] rounded-xl bg-white text-[#1E293B] text-center focus:outline-none focus:border-[#22C55E] disabled:opacity-60"
+              placeholder="Qté"
+            />
+            <button
+              onClick={handleAddToSubCart}
+              disabled={!subSelId || !!subMsg?.ok}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold bg-[#22C55E] text-white rounded-xl hover:bg-[#16A34A] transition-colors disabled:opacity-50"
+            >
+              <Plus size={14} />
+              Ajouter
+            </button>
+          </div>
         </div>
-        <button
-          onClick={addSubItem}
-          className="flex items-center gap-1.5 mt-3 px-3 py-2 text-[12px] font-medium text-[#22C55E] border border-[#22C55E] rounded-xl hover:bg-[#F0FDF4] transition-colors"
-        >
-          <Plus size={13} />
-          Ajouter un produit
-        </button>
+
+        {/* Panier */}
+        {subCart.length > 0 ? (
+          <div className="border border-[#E2E8F0] rounded-xl overflow-hidden">
+            <div className="px-4 py-2.5 bg-[#F0FDF4] border-b border-[#E2E8F0]">
+              <p className="text-[11px] font-semibold text-[#22C55E] uppercase tracking-wide">
+                Panier — {subCart.length} produit(s)
+              </p>
+            </div>
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Produit
+                  </th>
+                  <th className="text-center px-3 py-2.5 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Qté
+                  </th>
+                  <th className="text-right px-3 py-2.5 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    P.U.
+                  </th>
+                  <th className="text-right px-3 py-2.5 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Total
+                  </th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F1F5F9]">
+                {subCart.map((item) => (
+                  <tr key={item.product_id} className="hover:bg-[#F8FAFC] transition-colors">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B] leading-snug">
+                      {item.name}
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-[#64748B]">{item.quantity}</td>
+                    <td className="px-3 py-2.5 text-right text-[#64748B]">
+                      {item.unit_price.toLocaleString("fr-FR")} XAF
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-[#1E293B]">
+                      {item.total.toLocaleString("fr-FR")} XAF
+                    </td>
+                    <td className="pr-3">
+                      <button
+                        onClick={() => removeFromSubCart(item.product_id)}
+                        disabled={!!subMsg?.ok}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[#EF4444] hover:bg-red-50 transition-colors disabled:opacity-30 ml-auto"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-[#E2E8F0] bg-[#F8FAFC]">
+                  <td colSpan={3} className="px-4 py-3 text-[13px] font-semibold text-[#1E293B]">
+                    Total commande
+                  </td>
+                  <td className="px-3 py-3 text-right text-[15px] font-bold text-[#22C55E]">
+                    {subCart.reduce((s, i) => s + i.total, 0).toLocaleString("fr-FR")} XAF
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 gap-2 text-[#94A3B8] border border-dashed border-[#E2E8F0] rounded-xl">
+            <PackagePlus size={28} className="opacity-40" />
+            <p className="text-[13px]">Aucun produit dans le panier</p>
+            <p className="text-[11px]">Sélectionnez un produit ci-dessus pour commencer</p>
+          </div>
+        )}
       </Modal>
 
       {/* ── Prescription Lightbox ── */}
@@ -913,15 +1153,12 @@ export default function OrderDetailsPage() {
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
           onClick={() => setShowPrescriptionLightbox(false)}
         >
-          {/* Close button */}
           <button
             onClick={() => setShowPrescriptionLightbox(false)}
             className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
           >
             <X size={20} />
           </button>
-
-          {/* Download button */}
           <a
             href={order.prescription}
             target="_blank"
@@ -932,8 +1169,6 @@ export default function OrderDetailsPage() {
           >
             <Download size={18} />
           </a>
-
-          {/* Image plein écran */}
           <div
             className="relative max-w-4xl w-full max-h-[90vh] flex items-center justify-center"
             onClick={(e) => e.stopPropagation()}
@@ -943,6 +1178,9 @@ export default function OrderDetailsPage() {
               src={order.prescription}
               alt="Ordonnance"
               className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
             />
             <p className="absolute -bottom-8 left-0 right-0 text-center text-[12px] text-white/50">
               Cliquez en dehors de l&apos;image pour fermer
