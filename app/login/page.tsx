@@ -56,19 +56,14 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-8">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center gap-3 mb-3">
-              <svg width="44" height="44" viewBox="0 0 36 36" fill="none">
-                <rect width="36" height="36" rx="10" fill="#22C55E" />
-                <path d="M18 9v18M9 18h18" stroke="white" strokeWidth="3.5" strokeLinecap="round" />
-                <circle cx="18" cy="18" r="5" stroke="white" strokeWidth="2" fill="none" />
-              </svg>
-              <div>
-                <span className="text-[18px] font-bold text-[#1E293B] leading-none block">PharmaCare</span>
-                <span className="text-[11px] text-[#94A3B8] leading-none">Gestion de pharmacie</span>
-              </div>
-            </div>
-            <h1 className="text-[22px] font-semibold text-[#1E293B] mt-2">Se connecter</h1>
-            <p className="text-[13px] text-[#94A3B8] mt-1">Accédez à votre espace pharmacie</p>
+            <img
+              src="/logo.png"
+              alt="Logo e-Dr TIM"
+              width={100}
+              height={100}
+              className="rounded-2xl shadow-lg shadow-green-200 mb-3"
+            />
+            <p className="text-[13px] text-[#94A3B8]">Accédez à votre espace pharmacie</p>
           </div>
 
           {/* Error */}
