@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+
 import {
   ClipboardList,
   Pill,
@@ -23,7 +25,6 @@ const navItems = [
   { href: "/recuperation-colis", icon: PackageSearch, label: "Récupération colis" },
 ];
 
-// Barre mobile : 4 items max pour ne pas saturer l'écran
 const mobileNavItems = [
   { href: "/orders", icon: ClipboardList, label: "Commandes" },
   { href: "/products_list", icon: Pill, label: "Médicaments" },
@@ -46,6 +47,23 @@ function logout() {
 export default function Sidebar() {
   const pathname = usePathname();
 
+  // ✅ Nom dynamique de la pharmacie
+  const [pharmacyName, setPharmacyName] = useState("e-Dr TIM");
+  const [pharmacyDesc, setPharmacyDesc] = useState("Gestion de pharmacie");
+
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("officine") : null;
+    if (raw) {
+      try {
+        const o = JSON.parse(raw);
+        if (o.name) setPharmacyName(o.name);
+        if (o.description) setPharmacyDesc(o.description);
+      } catch {
+        // silent
+      }
+    }
+  }, []);
+
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
@@ -53,14 +71,15 @@ export default function Sidebar() {
     <>
       {/* ── Desktop Sidebar ── */}
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full w-64 bg-white border-r border-[#E2E8F0] z-40">
-        {/* Logo PharmaCare */}
+        {/* Logo */}
         <div className="h-16 flex items-center px-6 border-b border-[#E2E8F0] shrink-0">
           <Link href="/orders" className="flex items-center gap-3 w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="e-Dr TIM Pharmacy" style={{ height: 44, width: 'auto' }} className="object-contain" />
-            <div>
-              <span className="text-[15px] font-bold text-[#1E293B] leading-none">e-Dr TIM</span>
-              <p className="text-[11px] text-[#94A3B8] mt-0.5 leading-none">Gestion de pharmacie</p>
+            <img src="/logo.png" alt="Pharmacy Logo" style={{ height: 44, width: 'auto' }} className="object-contain" />
+            <div className="min-w-0">
+              {/* ✅ Nom dynamique */}
+              <span className="text-[15px] font-bold text-[#1E293B] leading-none truncate block">{pharmacyName}</span>
+              <p className="text-[11px] text-[#94A3B8] mt-0.5 leading-none truncate">{pharmacyDesc}</p>
             </div>
           </Link>
         </div>

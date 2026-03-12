@@ -16,12 +16,18 @@ export default function Header() {
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
-    const name = localStorage.getItem('officine_name') || 'Pharmacie';
-    const number = localStorage.getItem('officine_number') || '';
-    queueMicrotask(() => {
-      setOfficineName(name);
-      setOfficineNumber(number);
-    });
+    try {
+      const raw = localStorage.getItem('officine');
+      const officine = raw ? JSON.parse(raw) : null;
+      const name = officine?.name || officine?.officine_name || 'Pharmacie';
+      const number = officine?.telephone || officine?.officine_number || '';
+      queueMicrotask(() => {
+        setOfficineName(name);
+        setOfficineNumber(number);
+      });
+    } catch {
+      setOfficineName('Pharmacie');
+    }
   }, []);
 
   const fetchNotifications = useCallback(async () => {
@@ -96,7 +102,7 @@ export default function Header() {
 
   return (
     <header className="app-header sticky sticky-pin" id="header">
-      <div className="main-header-container container-fluid">
+      <div className="main-header-container container-fluid" style={{ position: 'relative' }}>
         {/* Header Left */}
         <div className="header-content-left">
           <div className="header-element">
@@ -137,12 +143,30 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Officine Name */}
-        <div className="header-content-right">
-          <span className="fs-13 fw-medium">
-            <h4 id="officine_name">{officineName}</h4>
+        {/* Officine Name – centré */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        >
+          <span
+            id="officine_name"
+            style={{
+              fontWeight: 700,
+              fontSize: '1.05rem',
+              whiteSpace: 'nowrap',
+              color: 'var(--default-text-color, #333)',
+            }}
+          >
+            {officineName}
           </span>
         </div>
+
 
         {/* Header Right */}
         <ul className="header-content-right">

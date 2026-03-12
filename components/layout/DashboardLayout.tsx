@@ -29,6 +29,9 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   // Wallet
   const [wallet, setWallet] = useState<PharmaWallet | null>(null);
 
+  // ✅ Nom de la pharmacie
+  const [pharmacyName, setPharmacyName] = useState("PharmaCare");
+
   const loadWallet = useCallback(async () => {
     try {
       const officineData = typeof window !== 'undefined' ? localStorage.getItem('officine') : null;
@@ -57,6 +60,17 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   }, []);
 
   useEffect(() => {
+    // ✅ Charger le nom de la pharmacie depuis localStorage
+    const raw = typeof window !== "undefined" ? localStorage.getItem("officine") : null;
+    if (raw) {
+      try {
+        const o = JSON.parse(raw);
+        setPharmacyName(o.name || "PharmaCare");
+      } catch {
+        // silent
+      }
+    }
+
     loadNotifications();
     loadWallet();
     const interval = setInterval(() => {
@@ -135,10 +149,14 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
                 <path d="M18 9v18M9 18h18" stroke="white" strokeWidth="3.5" strokeLinecap="round" />
                 <circle cx="18" cy="18" r="5" stroke="white" strokeWidth="2" fill="none" />
               </svg>
-              <span className="text-[14px] font-bold text-[#1E293B]">PharmaCare</span>
+              {/* ✅ Nom dynamique sur mobile */}
+              <span className="text-[14px] font-bold text-[#1E293B]">{pharmacyName}</span>
             </div>
-            {title && (
+            {/* ✅ Titre de la page sur desktop, ou nom de la pharmacie si pas de titre */}
+            {title ? (
               <h1 className="hidden lg:block text-[18px] font-semibold text-[#1E293B]">{title}</h1>
+            ) : (
+              <h1 className="hidden lg:block text-[18px] font-semibold text-[#1E293B]">{pharmacyName}</h1>
             )}
           </div>
 
@@ -162,130 +180,130 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
               </div>
             </Link>
 
-          <div className="relative">
-            <button
-              id="notif-btn"
-              onClick={() => setNotifOpen((v) => !v)}
-              className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-[#F0FDF4] transition-colors"
-              title="Notifications"
-            >
-              {unreadCount > 0
-                ? <BellDot size={20} className="text-[#22C55E]" />
-                : <Bell size={20} className="text-[#94A3B8]" />
-              }
-              {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-0.5 bg-[#EF4444] text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* ── Panneau dropdown ── */}
-            {notifOpen && (
-              <div
-                id="notif-panel"
-                className="absolute right-0 top-12 w-80 bg-white rounded-2xl z-50 max-h-[500px] overflow-hidden flex flex-col animate-slide-down"
-                style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(34,197,94,0.1)" }}
+            <div className="relative">
+              <button
+                id="notif-btn"
+                onClick={() => setNotifOpen((v) => !v)}
+                className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-[#F0FDF4] transition-colors"
+                title="Notifications"
               >
-                {/* Header panneau */}
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-[#F0FDF4] to-transparent shrink-0">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-[#22C55E]/10 flex items-center justify-center">
-                      <BellDot size={15} className="text-[#22C55E]" />
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-bold text-gray-900 leading-none">Notifications</p>
-                      {unreadCount > 0 && (
-                        <p className="text-[10px] text-[#22C55E] font-semibold mt-0.5">
-                          {unreadCount} non lue{unreadCount > 1 ? "s" : ""}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                {unreadCount > 0
+                  ? <BellDot size={20} className="text-[#22C55E]" />
+                  : <Bell size={20} className="text-[#94A3B8]" />
+                }
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-0.5 bg-[#EF4444] text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
 
-                  <div className="flex items-center gap-1">
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="w-7 h-7 rounded-lg text-gray-400 hover:text-[#22C55E] hover:bg-[#F0FDF4] flex items-center justify-center transition-all"
-                        title="Tout marquer comme lu"
-                      >
-                        <CheckCheck size={14} />
-                      </button>
-                    )}
-                    <button
-                      onClick={loadNotifications}
-                      disabled={loading}
-                      className="w-7 h-7 rounded-lg text-gray-400 hover:text-[#22C55E] hover:bg-[#F0FDF4] flex items-center justify-center transition-all disabled:opacity-50"
-                      title="Actualiser"
-                    >
-                      <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-                    </button>
-                    <button
-                      onClick={() => setNotifOpen(false)}
-                      className="w-7 h-7 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center transition-all"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Liste */}
-                <div className="overflow-y-auto flex-1">
-                  {loading ? (
-                    <div className="p-10 flex flex-col items-center gap-3">
-                      <Loader2 size={24} className="text-[#22C55E] animate-spin" />
-                      <p className="text-[11px] text-gray-400">Chargement…</p>
-                    </div>
-                  ) : notifications.length === 0 ? (
-                    <div className="p-10 flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center">
-                        <BellOff size={22} className="text-gray-300" />
+              {/* ── Panneau dropdown ── */}
+              {notifOpen && (
+                <div
+                  id="notif-panel"
+                  className="absolute right-0 top-12 w-80 bg-white rounded-2xl z-50 max-h-[500px] overflow-hidden flex flex-col animate-slide-down"
+                  style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(34,197,94,0.1)" }}
+                >
+                  {/* Header panneau */}
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-[#F0FDF4] to-transparent shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-[#22C55E]/10 flex items-center justify-center">
+                        <BellDot size={15} className="text-[#22C55E]" />
                       </div>
-                      <p className="text-[12px] text-gray-400">Aucune notification</p>
+                      <div>
+                        <p className="text-[13px] font-bold text-gray-900 leading-none">Notifications</p>
+                        {unreadCount > 0 && (
+                          <p className="text-[10px] text-[#22C55E] font-semibold mt-0.5">
+                            {unreadCount} non lue{unreadCount > 1 ? "s" : ""}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="divide-y divide-gray-50">
-                      {notifications.map((notif) => (
-                        <div
-                          key={notif.id}
-                          onClick={() => handleNotifClick(notif)}
-                          className={`p-3.5 cursor-pointer hover:bg-gray-50 transition-colors ${!notif.is_read
+
+                    <div className="flex items-center gap-1">
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="w-7 h-7 rounded-lg text-gray-400 hover:text-[#22C55E] hover:bg-[#F0FDF4] flex items-center justify-center transition-all"
+                          title="Tout marquer comme lu"
+                        >
+                          <CheckCheck size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={loadNotifications}
+                        disabled={loading}
+                        className="w-7 h-7 rounded-lg text-gray-400 hover:text-[#22C55E] hover:bg-[#F0FDF4] flex items-center justify-center transition-all disabled:opacity-50"
+                        title="Actualiser"
+                      >
+                        <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+                      </button>
+                      <button
+                        onClick={() => setNotifOpen(false)}
+                        className="w-7 h-7 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center transition-all"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Liste */}
+                  <div className="overflow-y-auto flex-1">
+                    {loading ? (
+                      <div className="p-10 flex flex-col items-center gap-3">
+                        <Loader2 size={24} className="text-[#22C55E] animate-spin" />
+                        <p className="text-[11px] text-gray-400">Chargement…</p>
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="p-10 flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center">
+                          <BellOff size={22} className="text-gray-300" />
+                        </div>
+                        <p className="text-[12px] text-gray-400">Aucune notification</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-50">
+                        {notifications.map((notif) => (
+                          <div
+                            key={notif.id}
+                            onClick={() => handleNotifClick(notif)}
+                            className={`p-3.5 cursor-pointer hover:bg-gray-50 transition-colors ${!notif.is_read
                               ? "bg-[#F0FDF4] border-l-[3px] border-l-[#22C55E]"
                               : ""
-                            } ${notif.order_id ? "group" : ""}`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <div
-                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${!notif.is_read
-                                ? "bg-[#22C55E]/15 text-[#22C55E]"
-                                : "bg-gray-100 text-gray-400"
-                                }`}
-                            >
-                              {getIcon(notif)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-1">
-                                <p className="text-[12px] font-bold text-gray-900 line-clamp-1">
-                                  {notif.title}
-                                </p>
-                                <span className="text-[10px] text-gray-400 whitespace-nowrap shrink-0">
-                                  {formatDate(notif.created_at)}
-                                </span>
+                              } ${notif.order_id ? "group" : ""}`}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${!notif.is_read
+                                  ? "bg-[#22C55E]/15 text-[#22C55E]"
+                                  : "bg-gray-100 text-gray-400"
+                                  }`}
+                              >
+                                {getIcon(notif)}
                               </div>
-                              <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">
-                                {notif.message}
-                              </p>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-1">
+                                  <p className="text-[12px] font-bold text-gray-900 line-clamp-1">
+                                    {notif.title}
+                                  </p>
+                                  <span className="text-[10px] text-gray-400 whitespace-nowrap shrink-0">
+                                    {formatDate(notif.created_at)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">
+                                  {notif.message}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
           </div>
         </header>
 
