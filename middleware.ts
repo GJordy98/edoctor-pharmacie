@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
   // - /_next: Next.js system files
   // - /images, /libs, /js, /css: Static assets
   // - /favicon.ico: Favicon
-  const isPublicPath = 
+  const isPublicPath =
     pathname === '/login' ||
     pathname.startsWith('/create_pharmacy') ||
     pathname.startsWith('/forgot-password') ||
@@ -19,7 +19,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/libs') ||
     pathname.startsWith('/js') ||
     pathname.startsWith('/css') ||
-    pathname === '/favicon.ico';
+    pathname === '/favicon.ico' ||
+    pathname.match(/\.(png|jpg|jpeg|svg|ico|webp|gif)$/) !== null;
 
   const token = request.cookies.get('accessToken')?.value;
 
