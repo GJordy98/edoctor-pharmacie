@@ -142,8 +142,8 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
             )}
           </div>
 
-          {/* ── Wallet badge ── */}
-          <div className="flex items-center gap-3 mr-1">
+          {/* ── Wallet badge + Cloche notifications ── */}
+          <div className="flex items-center gap-2">
             <Link
               href="/wallet"
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#F0FDF4] to-[#DCFCE7] border border-[#BBF7D0] hover:from-[#DCFCE7] hover:to-[#BBF7D0] hover:border-[#86EFAC] hover:shadow-md hover:shadow-green-100 transition-all duration-200 group"
@@ -161,9 +161,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
                 </span>
               </div>
             </Link>
-          </div>
 
-          {/* ── Cloche notifications ── */}
           <div className="relative">
             <button
               id="notif-btn"
@@ -287,6 +285,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
                 </div>
               </div>
             )}
+          </div>
           </div>
         </header>
 
