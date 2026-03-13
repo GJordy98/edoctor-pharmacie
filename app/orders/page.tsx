@@ -97,17 +97,56 @@ export default function OrdersPage() {
     try {
       const raw = await api.getAllPharmacyOrders();
 
-      const mapped: OrderUI[] = raw.map((item) => {
+      // Pour chaque officine-order, on récupère les items afin de calculer
+      // le total spécifique à cette pharmacie (et non le total global de la commande).
+      const itemsResults = await Promise.allSettled(
+        raw.map((item) => api.getOrderItems(item.id))
+      );
+
+      const mapped: OrderUI[] = raw.map((item, idx) => {
         const patient = item.patient ?? item.order?.patient;
         const patientName = patient
           ? `${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim() || "Client"
           : "Client";
 
+        // Calcul du total pharmacie à partir des items (comme dans la page de détail)
+        let pharmacyTotal: number | undefined;
+        const itemsResult = itemsResults[idx];
+        if (itemsResult.status === "fulfilled") {
+          const itemsData = itemsResult.value;
+          // Normalize: l'endpoint peut retourner un tableau direct ou { items: [...] }
+          const itemsArray: Record<string, unknown>[] = Array.isArray(itemsData)
+            ? (itemsData as Record<string, unknown>[])
+            : Array.isArray((itemsData as { items?: unknown[] })?.items)
+            ? ((itemsData as { items: Record<string, unknown>[] }).items)
+            : [];
+
+          if (itemsArray.length > 0) {
+            pharmacyTotal = itemsArray
+              .filter((i) => {
+                const st = String(i.status ?? "").toUpperCase();
+                return st !== "CANCELLED";
+              })
+              .reduce((sum, i) => {
+                const lineTotal = parseFloat(
+                  String(i.line_total ?? i.total_price ?? 0)
+                );
+                return sum + (isNaN(lineTotal) ? 0 : lineTotal);
+              }, 0);
+          }
+        }
+
+        // Fallback sur total_amount uniquement si on n'a pas pu calculer depuis les items
+        const totalSource =
+          pharmacyTotal !== undefined
+            ? pharmacyTotal
+            : (item.total_amount ?? item.order?.total_amount);
+
         return {
           id: item.id,
           patient: patientName,
           date: fmtDate(item.created_at ?? item.order?.created_at),
-          total: fmt(item.total_amount ?? item.order?.total_amount),
+          total: fmt(totalSource),
           payment: item.payment_status ?? item.order?.payment_status ?? "UNPAID",
           status: item.status ?? item.order?.status ?? "PENDING",
         };
