@@ -171,8 +171,16 @@ export default function OrdersPage() {
           total: fmt(totalSource),
           payment: String(item.payment_status ?? item.order?.payment_status ?? "UNPAID").toUpperCase(),
           status: normalizedStatus,
-        };
+          _rawDate: item.created_at ?? item.order?.created_at ?? "",
+        } as OrderUI & { _rawDate: string };
       });
+
+      // Trier du plus récent au plus ancien
+      (mapped as (OrderUI & { _rawDate: string })[]).sort(
+        (a, b) => new Date(b._rawDate).getTime() - new Date(a._rawDate).getTime()
+      );
+      // Nettoyer le champ temporaire
+      mapped.forEach((o) => { delete (o as unknown as Record<string, unknown>)._rawDate; });
 
       setOrders(mapped);
       setLastRefresh(new Date());
