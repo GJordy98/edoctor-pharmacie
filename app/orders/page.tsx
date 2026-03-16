@@ -61,11 +61,10 @@ function StatCard({ label, count, icon: Icon, color, active, onClick }: StatCard
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-4 rounded-xl border transition-all ${
-        active
+      className={`w-full text-left p-4 rounded-xl border transition-all ${active
           ? "border-[#22C55E] bg-[#F0FDF4] shadow-sm"
           : "border-[#E2E8F0] bg-white hover:border-[#22C55E] hover:shadow-sm"
-      }`}
+        }`}
     >
       <div className="flex items-center gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
@@ -90,12 +89,31 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
 
+  // Pharmacy ID — needed for the per-status endpoint
+  const [officineId, setOfficineId] = useState("");
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("officine") : null;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        setOfficineId(parsed?.id || parsed?.uuid || String(parsed) || "");
+      } catch {
+        setOfficineId(raw);
+      }
+    } else {
+      // No officine in storage — stop the initial spinner
+      setIsLoading(false);
+    }
+  }, []);
+
   const fetchOrders = useCallback(async (silent = false) => {
+    if (!officineId) return;
     if (!silent) setIsLoading(true);
     else setIsRefreshing(true);
 
     try {
-      const raw = await api.getAllPharmacyOrders();
+      // Fetch every status bucket in parallel via the confirmed per-status endpoint
+      const raw = await api.getAllOrdersByOfficine(officineId);
 
       // Pour chaque officine-order, on récupère les items afin de calculer
       // le total spécifique à cette pharmacie (et non le total global de la commande).
@@ -118,8 +136,8 @@ export default function OrdersPage() {
           const itemsArray: Record<string, unknown>[] = Array.isArray(itemsData)
             ? (itemsData as Record<string, unknown>[])
             : Array.isArray((itemsData as { items?: unknown[] })?.items)
-            ? ((itemsData as { items: Record<string, unknown>[] }).items)
-            : [];
+              ? ((itemsData as unknown as { items: Record<string, unknown>[] }).items)
+              : [];
 
           if (itemsArray.length > 0) {
             pharmacyTotal = itemsArray
@@ -142,13 +160,17 @@ export default function OrdersPage() {
             ? pharmacyTotal
             : (item.total_amount ?? item.order?.total_amount);
 
+        // Normalize status to uppercase to prevent case mismatches
+        const rawStatus = item.status ?? item.order?.status ?? "PENDING";
+        const normalizedStatus = String(rawStatus).toUpperCase();
+
         return {
           id: item.id,
           patient: patientName,
           date: fmtDate(item.created_at ?? item.order?.created_at),
           total: fmt(totalSource),
-          payment: item.payment_status ?? item.order?.payment_status ?? "UNPAID",
-          status: item.status ?? item.order?.status ?? "PENDING",
+          payment: String(item.payment_status ?? item.order?.payment_status ?? "UNPAID").toUpperCase(),
+          status: normalizedStatus,
         };
       });
 
@@ -160,38 +182,69 @@ export default function OrdersPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [officineId]);
 
-  /* initial load */
+  /* initial load — fires once officineId is known */
   useEffect(() => {
-    fetchOrders(false);
-  }, [fetchOrders]);
+    if (officineId) fetchOrders(false);
+  }, [officineId, fetchOrders]);
 
   /* polling every 30 s */
   useEffect(() => {
+    if (!officineId) return;
     const interval = setInterval(() => fetchOrders(true), 30_000);
     return () => clearInterval(interval);
-  }, [fetchOrders]);
+  }, [officineId, fetchOrders]);
+
+  /**
+   * Maps the real backend status enum to one of the 5 dashboard groups.
+   * Backend enum: PENDING | PENDING_PATIENT | APPROVED | REJECTED |
+   *               READY_FOR_PICKUP | PICKED_UP | CANCELLED | COMPLETED
+   */
+  function statusGroup(status: string): string {
+    switch (status) {
+      // ── En attente (pharmacie n'a pas encore traité) ───────────────────────────────
+      case "PENDING":
+        return "PENDING";
+
+      // ── Acceptées (pharmacie validée, patient doit confirmer ou déjà confirmé) ──
+      case "PENDING_PATIENT":   // pharmacie validée, en attente confirmation patient
+      case "APPROVED":          // validé des deux côtés
+        return "ACCEPTED";
+
+      // ── Prêt collecte (livreur vient récupérer) ──────────────────────────────
+
+      // ── En livraison (livreur a collecté le colis) ───────────────────────────
+
+
+      // ── Terminées avec succès ─────────────────────────────────────────────
+      case "COMPLETED":
+        return "COMPLETED";
+
+      // ── Rejetées / Annulées ───────────────────────────────────────────────
+      case "REJECTED":
+      case "CANCELLED":
+        return "REJECTED";
+
+      default:
+        return "PENDING";
+    }
+  }
 
   /* derived stats */
   const stats = [
-    { key: "all",        label: "Toutes",      count: orders.length,                                                                                icon: ClipboardList, color: "bg-[#F0FDF4] text-[#22C55E]" },
-    { key: "PENDING",    label: "En attente",  count: orders.filter((o) => o.status === "PENDING").length,                                         icon: Clock,         color: "bg-orange-50 text-orange-500" },
-    { key: "ACCEPTED",   label: "Acceptées",   count: orders.filter((o) => o.status === "ACCEPTED" || o.status === "RESERVED").length,              icon: CheckCircle2,  color: "bg-green-50 text-green-600" },
-    { key: "IN_PICKUP",  label: "Prêt collecte", count: orders.filter((o) => o.status === "IN_PICKUP").length,                                     icon: PackageCheck,  color: "bg-blue-50 text-blue-600" },
-    { key: "IN_DELIVERY",label: "En livraison", count: orders.filter((o) => o.status === "IN_DELIVERY").length,                                    icon: Truck,         color: "bg-purple-50 text-purple-600" },
-    { key: "REJECTED",   label: "Rejetées",    count: orders.filter((o) => o.status === "REJECTED" || o.status === "CANCELLED").length,             icon: XCircle,       color: "bg-red-50 text-red-500" },
+    { key: "all", label: "Toutes", count: orders.length, icon: ClipboardList, color: "bg-[#F0FDF4] text-[#22C55E]" },
+    { key: "PENDING", label: "En attente", count: orders.filter((o) => statusGroup(o.status) === "PENDING").length, icon: Clock, color: "bg-orange-50 text-orange-500" },
+    { key: "ACCEPTED", label: "Acceptées", count: orders.filter((o) => statusGroup(o.status) === "ACCEPTED").length, icon: CheckCircle2, color: "bg-green-50 text-green-600" },
+    { key: "REJECTED", label: "Rejetées", count: orders.filter((o) => statusGroup(o.status) === "REJECTED").length, icon: XCircle, color: "bg-red-50 text-red-500" },
+    { key: "COMPLETED", label: "Terminées", count: orders.filter((o) => statusGroup(o.status) === "COMPLETED").length, icon: CheckCircle2, color: "bg-teal-50 text-teal-600" },
   ];
 
   const filtered = orders.filter((o) => {
     const q = searchTerm.toLowerCase();
     const matchSearch = o.patient.toLowerCase().includes(q) || o.id.toLowerCase().includes(q);
-    // ACCEPTED regroupe ACCEPTED et RESERVED (même statut côté backend selon version)
     const matchStatus =
-      statusFilter === "all" ||
-      (statusFilter === "ACCEPTED" && (o.status === "ACCEPTED" || o.status === "RESERVED")) ||
-      (statusFilter === "REJECTED" && (o.status === "REJECTED" || o.status === "CANCELLED")) ||
-      (statusFilter !== "ACCEPTED" && statusFilter !== "REJECTED" && o.status === statusFilter);
+      statusFilter === "all" || statusGroup(o.status) === statusFilter;
     const matchPayment = paymentFilter === "all" || o.payment === paymentFilter;
     return matchSearch && matchStatus && matchPayment;
   });
@@ -221,7 +274,7 @@ export default function OrdersPage() {
         </div>
 
         {/* ── Stat cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {stats.map((s) => (
             <StatCard
               key={s.key}
@@ -270,9 +323,10 @@ export default function OrdersPage() {
             >
               <option value="all">Tous les statuts</option>
               <option value="PENDING">En attente</option>
-              <option value="ACCEPTED">Acceptée</option>
-              <option value="IN_PICKUP">Prêt collecte</option>
-              <option value="IN_DELIVERY">En livraison</option>
+              <option value="ACCEPTED">Acceptée (APPROVED)</option>
+              <option value="IN_PICKUP">Prêt collecte (READY_FOR_PICKUP)</option>
+              <option value="IN_DELIVERY">En livraison (PICKED_UP)</option>
+              <option value="COMPLETED">Terminée</option>
               <option value="REJECTED">Rejetée / Annulée</option>
             </select>
           </div>

@@ -336,9 +336,67 @@ class ApiClient {
     }
 
     /**
-     * Fetches ALL pharmacy orders (all statuses: PENDING, RESERVED, REJECTED…).
-     * The get_order_by_officine/ endpoint returns every order for this pharmacy
-     * regardless of status — no filtering needed.
+     * Fetches ALL pharmacy orders by querying each known status in parallel
+     * via /api/v1/officine/{id}/list-officine-orders-pending/?status=X.
+     * Results are merged and deduplicated by officine-order ID.
+     */
+    public async getAllOrdersByOfficine(officineId: string): Promise<APIOrderListResponseItem[]> {
+        const STATUSES = [
+            'PENDING',
+            'PENDING_PATIENT',
+            'APPROVED',
+            'REJECTED',
+            'READY_FOR_PICKUP',
+            'PICKED_UP',
+            'CANCELLED',
+            'COMPLETED',
+        ];
+
+        // Fetch each status silently — backend may reject unknown statuses with
+        // {"detail":"invalid status"}, so we catch per-request and return [] on error.
+        const perStatusResults = await Promise.all(
+            STATUSES.map(async (s) => {
+                try {
+                    const data = await fetch(
+                        `${API_BASE_URL}/api/v1/officine/${officineId}/list-officine-orders-pending/?status=${s}`,
+                        {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
+                            },
+                        }
+                    );
+                    if (!data.ok) return [];          // silently skip invalid/unsupported statuses
+                    const json: unknown = await data.json();
+                    return Array.isArray(json)
+                        ? (json as APIOrderListResponseItem[])
+                        : Array.isArray((json as { results?: unknown })?.results)
+                            ? ((json as { results: APIOrderListResponseItem[] }).results)
+                            : [];
+                } catch {
+                    return [];                        // network error — skip silently
+                }
+            })
+        );
+
+        const merged: APIOrderListResponseItem[] = [];
+        const seen = new Set<string>();
+
+        for (const items of perStatusResults) {
+            for (const item of items) {
+                if (item.id && !seen.has(item.id)) {
+                    seen.add(item.id);
+                    merged.push(item);
+                }
+            }
+        }
+
+        return merged;
+    }
+
+    /**
+     * @deprecated Use getAllOrdersByOfficine(officineId) instead.
+     * Kept for backward compatibility with any other callers.
      */
     public async getAllPharmacyOrders(): Promise<APIOrderListResponseItem[]> {
         const res = await this.request<unknown>('/api/v1/officine-order/get_order_by_officine/', { requiresAuth: true });
@@ -350,7 +408,7 @@ class ApiClient {
     }
 
     /**
-     * Manages fetching pending orders for a pharmacy.
+     * Fetches pending orders for a pharmacy (single-status shortcut).
      */
     public async getPendingOrders(pharmacyId: string): Promise<APIOrderListResponseItem[]> {
         return this.request<APIOrderListResponseItem[]>(`/api/v1/officine/${pharmacyId}/list-officine-orders-pending/?status=PENDING`);
