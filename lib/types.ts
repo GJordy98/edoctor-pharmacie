@@ -450,3 +450,17 @@ export interface PaymentResponse {
     transaction_id?: string;
     [key: string]: unknown;
 }
+
+// --- Historique produits officine ---
+export interface OfficineProductHistory {
+    id: string;
+    officine: string;
+    product: string;
+    product_name: string;
+    product_cdi: string;
+    quantity: string;
+    unit_price: string;
+    line_total: string;
+    status: 'PENDING' | 'RESERVED' | 'PICKED' | 'CANCELLED' | 'COMPLETED';
+    created_at: string;
+}

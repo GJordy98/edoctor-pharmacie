@@ -10,6 +10,9 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
   COMPLETED:        { label: "Terminée",        className: "bg-teal-50 text-teal-700" },
   REJECTED:         { label: "Rejetée",         className: "bg-red-50 text-red-500" },
   CANCELLED:        { label: "Annulée",         className: "bg-red-50 text-red-400" },
+  // ── Statuts historique produits ───────────────────────────────────────
+  RESERVED:         { label: "Réservé",         className: "bg-blue-50 text-blue-600" },
+  PICKED:           { label: "Collecté",        className: "bg-indigo-50 text-indigo-600" },
   // ── Paiement ─────────────────────────────────────────────────────────
   UNPAID:           { label: "Non payé",        className: "bg-orange-50 text-orange-600" },
   PAID:             { label: "Payé",            className: "bg-green-50 text-green-600" },

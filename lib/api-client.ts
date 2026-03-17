@@ -30,6 +30,7 @@ import {
     PatientOrderItem,
     PaymentPayload,
     PaymentResponse,
+    OfficineProductHistory,
 } from '@/lib/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -1137,6 +1138,49 @@ class ApiClient {
         }
         const text = await response.text();
         return text ? JSON.parse(text) : {};
+    }
+
+    // --- Historique produits officine ---
+    /**
+     * Fetches product history for the authenticated officine, filtered by status.
+     * GET /api/v1/officine/products/history/?status=<STATUS>
+     */
+    public async getProductHistoryByStatus(status: string): Promise<OfficineProductHistory[]> {
+        const data = await this.request<unknown>(
+            `/api/v1/officine/products/history/?status=${status}`,
+            { requiresAuth: true }
+        );
+        if (Array.isArray(data)) return data as OfficineProductHistory[];
+        const paged = data as { results?: OfficineProductHistory[] };
+        return paged?.results ?? [];
+    }
+
+    /**
+     * Fetches ALL product history by querying all 5 statuses in parallel.
+     * Merges and deduplicates by item ID.
+     */
+    public async getAllProductHistory(): Promise<OfficineProductHistory[]> {
+        const STATUSES = ['PENDING', 'RESERVED', 'PICKED', 'CANCELLED', 'COMPLETED'];
+        const results = await Promise.all(
+            STATUSES.map(async (s) => {
+                try {
+                    return await this.getProductHistoryByStatus(s);
+                } catch {
+                    return [];
+                }
+            })
+        );
+        const merged: OfficineProductHistory[] = [];
+        const seen = new Set<string>();
+        for (const items of results) {
+            for (const item of items) {
+                if (item.id && !seen.has(item.id)) {
+                    seen.add(item.id);
+                    merged.push(item);
+                }
+            }
+        }
+        return merged;
     }
 }
 

@@ -14,12 +14,14 @@ import {
   Settings,
   LogOut,
   PackageSearch,
+  History,
 } from "lucide-react";
 
 const navItems = [
   { href: "/orders", icon: ClipboardList, label: "Commandes" },
   { href: "/products_list", icon: Pill, label: "Médicaments" },
   { href: "/add-product", icon: Plus, label: "Ajouter stock" },
+  { href: "/product-history", icon: History, label: "Historique produits" },
   { href: "/wallet", icon: Wallet, label: "Portefeuille" },
   { href: "/schedule", icon: Clock, label: "Horaires" },
   { href: "/recuperation-colis", icon: PackageSearch, label: "Récupération colis" },
