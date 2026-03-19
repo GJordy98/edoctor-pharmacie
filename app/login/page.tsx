@@ -63,6 +63,7 @@ export default function LoginPage() {
               height={100}
               className="rounded-2xl shadow-lg shadow-green-200 mb-3"
             />
+            <h1 className="text-[28px] font-bold text-[#1E293B] leading-none">e-Dr TIM Pharmacy</h1>
             <p className="text-[13px] text-[#94A3B8]">Accédez à votre espace pharmacie</p>
           </div>
 
