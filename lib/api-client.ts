@@ -605,9 +605,20 @@ class ApiClient {
                 ? (raw as { results: unknown[] }).results
                 : [];
 
+        // Debug: log first item to inspect backend structure
+        if (list.length > 0) {
+            console.log('[getProducts] Raw first item:', JSON.stringify(list[0], null, 2));
+        }
+
         return list.map((item: unknown) => {
             const entry = item as Record<string, unknown>;
             const nested = (entry.product ?? {}) as Record<string, unknown>;
+
+            // galenic_detail can be in nested.galenic_detail OR entry.galenic_detail
+            const galenDetail = (nested.galenic_detail ?? entry.galenic_detail) as Product['galenic_detail'];
+            const catDetail = (nested.category_detail ?? entry.category_detail) as Product['category_detail'];
+            const unitBaseDetail = (nested.unit_base_detail ?? entry.unit_base_detail) as Product['unit_base_detail'];
+            const unitSaleDetail = (nested.unit_sale_detail ?? entry.unit_sale_detail) as Product['unit_sale_detail'];
 
             return {
                 // On stocke l'id du product-price dans price_id pour référence,
@@ -622,10 +633,10 @@ class ApiClient {
                 unit_base: (nested.unit_base as string) || '',
                 unit_sale: (nested.unit_sale as string) || '',
                 unit_purchase: (nested.unit_purchase as string) || '',
-                galenic_detail: nested.galenic_detail as Product['galenic_detail'],
-                category_detail: nested.category_detail as Product['category_detail'],
-                unit_base_detail: nested.unit_base_detail as Product['unit_base_detail'],
-                unit_sale_detail: nested.unit_sale_detail as Product['unit_sale_detail'],
+                galenic_detail: galenDetail,
+                category_detail: catDetail,
+                unit_base_detail: unitBaseDetail,
+                unit_sale_detail: unitSaleDetail,
                 sale_price: entry.sale_price !== undefined ? parseFloat(String(entry.sale_price)) : undefined,
                 currency: (entry.currency as string) || 'XAF',
                 image: (nested.image as string | null) || null,
@@ -970,13 +981,11 @@ class ApiClient {
     }
 
     public async getWalletTransactions(): Promise<PharmaTransaction[]> {
-        try {
-            const data = await this.request<unknown>('/api/v1/wallet-officine/transactions/', { requiresAuth: true });
-            const items: unknown[] = Array.isArray(data) ? data : ((data as { results?: unknown[] }).results ?? []);
-            return items as PharmaTransaction[];
-        } catch {
-            return [];
-        }
+        // [Hotfix] The endpoint /api/v1/wallet-officine/transactions/ does not exist.
+        // Transactions are either attached to the wallet payload or not implemented.
+        // Returning an empty array to prevent 404 errors until backend provides the final route.
+        console.warn("[API] getWalletTransactions called but endpoint is unavailable. See getWallet payload.");
+        return Promise.resolve([]);
     }
 
     // --- Patient Orders ---

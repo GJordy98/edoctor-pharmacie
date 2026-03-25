@@ -166,7 +166,7 @@ export default function ProductsPage() {
                         )}
                       </td>
                       <td className="px-4 py-3.5 text-[#64748B]">
-                        {product.galenic_detail?.name || "—"}
+                        {product.galenic_detail?.name || product.dci || "—"}
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-[#1E293B]">
                         {product.sale_price

@@ -80,6 +80,8 @@ function StatCard({ label, count, icon: Icon, color, active, onClick }: StatCard
 }
 
 /* ── main page ── */
+const ITEMS_PER_PAGE = 15;
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderUI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,6 +90,7 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Pharmacy ID — needed for the per-status endpoint
   const [officineId, setOfficineId] = useState("");
@@ -257,6 +260,14 @@ export default function OrdersPage() {
     return matchSearch && matchStatus && matchPayment;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset page when filters change
+  const handleSearch = (v: string) => { setSearchTerm(v); setCurrentPage(1); };
+  const handleStatusFilter = (v: string) => { setStatusFilter(v); setCurrentPage(1); };
+  const handlePaymentFilter = (v: string) => { setPaymentFilter(v); setCurrentPage(1); };
+
   return (
     <DashboardLayout title="Commandes">
       <div className="space-y-5 animate-fade-in-up">
@@ -307,7 +318,7 @@ export default function OrdersPage() {
                 type="text"
                 placeholder="Rechercher un patient, ID…"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
               />
             </div>
@@ -315,7 +326,7 @@ export default function OrdersPage() {
             {/* Payment filter */}
             <select
               value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value)}
+              onChange={(e) => handlePaymentFilter(e.target.value)}
               className="px-3 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] cursor-pointer"
             >
               <option value="all">Tous les paiements</option>
@@ -326,7 +337,7 @@ export default function OrdersPage() {
             {/* Status filter */}
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleStatusFilter(e.target.value)}
               className="px-3 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] cursor-pointer"
             >
               <option value="all">Tous les statuts</option>
@@ -385,7 +396,7 @@ export default function OrdersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((order) => (
+                  paginated.map((order) => (
                     <tr key={order.id} className="hover:bg-[#F8FAFC] transition-colors">
                       <td className="px-4 py-3.5">
                         <span className="font-mono text-[12px] text-[#22C55E] font-semibold">
@@ -432,13 +443,58 @@ export default function OrdersPage() {
             </table>
           </div>
 
-          {/* Footer */}
+          {/* Footer / Pagination */}
           {!isLoading && filtered.length > 0 && (
-            <div className="px-4 py-3 border-t border-[#E2E8F0] text-[12px] text-[#94A3B8]">
-              {filtered.length} commande{filtered.length > 1 ? "s" : ""}{" "}
-              {statusFilter !== "all" || paymentFilter !== "all" || searchTerm
-                ? "filtrée" + (filtered.length > 1 ? "s" : "")
-                : "au total"}
+            <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between flex-wrap gap-3">
+              <p className="text-[12px] text-[#94A3B8]">
+                {filtered.length} commande{filtered.length > 1 ? "s" : ""}&nbsp;
+                {statusFilter !== "all" || paymentFilter !== "all" || searchTerm
+                  ? "filtrée" + (filtered.length > 1 ? "s" : "")
+                  : "au total"}
+                &nbsp;— Page {currentPage}/{totalPages}
+              </p>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#E2E8F0] text-[#94A3B8] hover:border-[#22C55E] hover:text-[#22C55E] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
+                  >
+                    ‹
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === '...' ? (
+                        <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-[12px] text-[#94A3B8]">…</span>
+                      ) : (
+                        <button
+                          key={item}
+                          onClick={() => setCurrentPage(item as number)}
+                          className={`w-8 h-8 flex items-center justify-center rounded-lg border text-[12px] font-medium transition-colors ${
+                            currentPage === item
+                              ? 'border-[#22C55E] bg-[#F0FDF4] text-[#22C55E]'
+                              : 'border-[#E2E8F0] text-[#64748B] hover:border-[#22C55E] hover:text-[#22C55E]'
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#E2E8F0] text-[#94A3B8] hover:border-[#22C55E] hover:text-[#22C55E] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px]"
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

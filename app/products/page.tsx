@@ -409,9 +409,9 @@ export default function ProductsPage() {
                               <td className="text-center">
                                 <div className="avatar avatar-md bg-light overflow-hidden rounded-2" style={{ position: 'relative', width: '40px', height: '40px' }}>
                                   {product.image ? (
-                                    <Image 
-                                      src={product.image} 
-                                      alt={product.name} 
+                                    <Image
+                                      src={product.image}
+                                      alt={product.name}
                                       fill
                                       style={{ objectFit: 'cover' }}
                                       sizes="40px"
@@ -429,9 +429,6 @@ export default function ProductsPage() {
                               <td>
                                 <div className="d-flex flex-column">
                                   <span className="fw-semibold">{product.name}</span>
-                                  {product.dci && (
-                                    <span className="text-muted fs-12">{product.dci}</span>
-                                  )}
                                 </div>
                               </td>
                               <td>

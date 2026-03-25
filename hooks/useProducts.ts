@@ -57,10 +57,27 @@ export function useProducts(): UseProductsReturn {
         return;
       }
 
-      // api.getProducts() retourne déjà des Product[] correctement aplatis
-      // (champs name, dci, dosage, sale_price au niveau racine)
-      const productList = await api.getProducts(pharmacyId);
-      setProducts(Array.isArray(productList) ? productList : []);
+      // Charger les produits et les galéniques en parallèle pour l'enrichissement
+      const [productList, galenicsList] = await Promise.all([
+        api.getProducts(pharmacyId),
+        api.getGalenics().catch(() => []) // fail gracefully if error
+      ]);
+      
+      const galenicsMap = new Map((Array.isArray(galenicsList) ? galenicsList : []).map(g => [g.id, g.name]));
+
+      const arr = Array.isArray(productList) ? productList : [];
+      const enrichedProducts = arr.map(p => {
+        // Si le backend n'a pas inclus galenic_detail mais qu'on a un ID galenic
+        if (!p.galenic_detail?.name && p.galenic && galenicsMap.has(p.galenic)) {
+          p.galenic_detail = {
+            id: p.galenic,
+            name: galenicsMap.get(p.galenic) || ''
+          };
+        }
+        return p;
+      });
+
+      setProducts(enrichedProducts);
 
     } catch (err: unknown) {
       const error = err as Error;

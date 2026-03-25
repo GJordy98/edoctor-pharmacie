@@ -41,7 +41,16 @@ export default function WalletPage() {
         api.getWalletTransactions(),
       ]);
       setWallet(walletData);
-      setTransactions(txData);
+      
+      // Fallback: If walletData includes a transactions array, use it.
+      // Otherwise, use txData (which currently returns [] to prevent 404).
+      if (walletData && Array.isArray((walletData as any).transactions)) {
+          setTransactions((walletData as any).transactions);
+      } else if (walletData && Array.isArray((walletData as any).history)) {
+          setTransactions((walletData as any).history);
+      } else {
+          setTransactions(txData);
+      }
     } catch (err) {
       console.error("Wallet fetch error:", err);
     } finally {
@@ -79,7 +88,9 @@ export default function WalletPage() {
     );
   }
 
-  const availableBalance = wallet ? wallet.balance - wallet.locked_amount : 0;
+  const safeBalance = wallet?.balance ? Number(wallet.balance) : 0;
+  const safeLocked = wallet?.locked_amount ? Number(wallet.locked_amount) : 0;
+  const availableBalance = safeBalance - safeLocked;
 
   return (
     <DashboardLayout title="Portefeuille">
@@ -110,7 +121,7 @@ export default function WalletPage() {
 
               {wallet ? (
                 <p className="text-4xl font-black tracking-tight mb-6">
-                  {formatPrice(wallet.balance)}
+                  {formatPrice(safeBalance)}
                 </p>
               ) : (
                 <div className="mb-6">
@@ -152,7 +163,7 @@ export default function WalletPage() {
                       <span className="text-[12px] font-bold text-orange-700">Bloqué</span>
                     </div>
                     <span className="text-[13px] font-black text-orange-700">
-                      {formatPrice(wallet.locked_amount)}
+                      {formatPrice(safeLocked)}
                     </span>
                   </div>
                 </div>
