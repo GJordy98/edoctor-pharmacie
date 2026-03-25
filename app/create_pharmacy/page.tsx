@@ -11,6 +11,7 @@ import {
 import { api } from '@/lib/api-client';
 import { PharmacistRegisterData } from '@/lib/types';
 import PhoneInput from '@/components/ui/PhoneInput';
+import LocationPicker from '@/components/ui/LocationPicker';
 
 // ── Types ──────────────────────────────────────────────────
 interface PharmacyForm {
@@ -346,13 +347,17 @@ export default function CreatePharmacyPage() {
                                                 placeholder="6XX XX XX XX"
                                             />
                                         </Field>
-                                        <Field label="Latitude" required hint="Ex : 4.0511">
-                                            <input className={inputNoPadCls} type="text" placeholder="4.0511"
-                                                value={pharmacy.address.latitude} onChange={e => setAddr('latitude', e.target.value)} required />
-                                        </Field>
-                                        <Field label="Longitude" required hint="Ex : 9.7679">
-                                            <input className={inputNoPadCls} type="text" placeholder="9.7679"
-                                                value={pharmacy.address.longitude} onChange={e => setAddr('longitude', e.target.value)} required />
+                                    </div>
+                                    <div className="pt-2">
+                                        <Field label="Localisation géographique" required hint="Recherchez votre quartier ou cliquez sur la carte">
+                                            <LocationPicker 
+                                                latitude={pharmacy.address.latitude}
+                                                longitude={pharmacy.address.longitude}
+                                                onChange={(lat, lng) => {
+                                                    setAddr('latitude', lat);
+                                                    setAddr('longitude', lng);
+                                                }}
+                                            />
                                         </Field>
                                     </div>
                                 </div>
