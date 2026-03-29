@@ -365,6 +365,7 @@ export default function ProductsPage() {
                           <th>ID Produit</th>
                           <th>Nom du Produit</th>
                           <th>Forme Galénique</th>
+                          <th>Quantité</th>
                           <th>Prix de Vente</th>
                           <th>Devise</th>
                           <th style={{ width: '100px' }}>Actions</th>
@@ -374,7 +375,7 @@ export default function ProductsPage() {
                       <tbody>
                         {loading ? (
                           <tr>
-                            <td colSpan={7} className="text-center py-5">
+                            <td colSpan={8} className="text-center py-5">
                               <div className="spinner-border text-primary" role="status">
                                 <span className="visually-hidden">Chargement...</span>
                               </div>
@@ -383,7 +384,7 @@ export default function ProductsPage() {
                           </tr>
                         ) : paginatedProducts.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="text-center py-5">
+                            <td colSpan={8} className="text-center py-5">
                               <i className="ri-inbox-line fs-40 text-muted d-block mb-2"></i>
                               <p className="text-muted mb-0">
                                 {searchQuery || categoryFilter !== 'all'
@@ -433,6 +434,15 @@ export default function ProductsPage() {
                               </td>
                               <td>
                                 {product.galenic_detail?.name || (
+                                  <span className="text-muted">—</span>
+                                )}
+                              </td>
+                              <td>
+                                {((product as any).stock !== undefined || (product as any).quantity !== undefined) ? (
+                                  <span className={`badge ${Number((product as any).stock ?? (product as any).quantity) > 0 ? 'bg-success-transparent text-success' : 'bg-danger-transparent text-danger'}`}>
+                                    {Number((product as any).stock ?? (product as any).quantity)}
+                                  </span>
+                                ) : (
                                   <span className="text-muted">—</span>
                                 )}
                               </td>

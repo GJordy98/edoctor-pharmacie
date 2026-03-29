@@ -873,7 +873,7 @@ export default function OrderDetailsPage() {
                     ) : hasReserved ? (
                       <>
                         <CheckCircle2 size={16} />
-                        Valider la commande
+                        Confirmer la commande
                       </>
                     ) : (
                       <>

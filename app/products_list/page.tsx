@@ -20,7 +20,7 @@ import { showToast } from "@/components/ui/Toast";
 function SkeletonRow() {
   return (
     <tr>
-      {Array.from({ length: 7 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <td key={i} className="px-4 py-4">
           <div className="skeleton h-4 rounded w-3/4" />
         </td>
@@ -113,6 +113,9 @@ export default function ProductsPage() {
                     Forme galénique
                   </th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
+                    Quantité
+                  </th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
                     Prix de vente
                   </th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
@@ -128,7 +131,7 @@ export default function ProductsPage() {
                   Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
                 ) : products.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-16">
+                    <td colSpan={8} className="text-center py-16">
                       <Package size={32} className="text-[#E2E8F0] mx-auto mb-3" />
                       <p className="text-[14px] font-medium text-[#94A3B8]">Aucun médicament</p>
                       <Link
@@ -167,6 +170,15 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-4 py-3.5 text-[#64748B]">
                         {product.galenic_detail?.name || product.dci || "—"}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {((product as any).stock !== undefined || (product as any).quantity !== undefined) ? (
+                          <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-md ${Number((product as any).stock ?? (product as any).quantity) > 0 ? 'bg-[#F0FDF4] text-[#22C55E]' : 'bg-red-50 text-red-500'}`}>
+                            {Number((product as any).stock ?? (product as any).quantity)}
+                          </span>
+                        ) : (
+                          <span className="text-[#94A3B8]">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-[#1E293B]">
                         {product.sale_price

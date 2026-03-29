@@ -396,12 +396,25 @@ export default function OrdersPage() {
                     </td>
                   </tr>
                 ) : (
-                  paginated.map((order) => (
-                    <tr key={order.id} className="hover:bg-[#F8FAFC] transition-colors">
+                  paginated.map((order) => {
+                    const isNew = order.status === "PENDING";
+                    return (
+                    <tr key={order.id} className={`transition-colors border-l-4 ${isNew ? 'bg-orange-50/50 hover:bg-orange-100/50 border-orange-400' : 'border-transparent hover:bg-[#F8FAFC]'}`}>
                       <td className="px-4 py-3.5">
-                        <span className="font-mono text-[12px] text-[#22C55E] font-semibold">
-                          #{order.id.slice(0, 8)}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="font-mono text-[12px] text-[#22C55E] font-semibold">
+                            #{order.id.slice(0, 8)}
+                          </span>
+                          {isNew && (
+                            <span className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-600 uppercase tracking-widest shadow-sm border border-orange-200">
+                              <span className="relative flex h-1.5 w-1.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-500"></span>
+                              </span>
+                              À traiter
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3.5 font-medium text-[#1E293B]">
                         {order.patient}
@@ -437,7 +450,8 @@ export default function OrdersPage() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

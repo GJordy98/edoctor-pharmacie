@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
     PackageSearch, AlertCircle, CheckCircle2, Loader2,
     Camera, X, Upload, Pill, Building2, Truck,
-    ArrowRight, FlaskConical, Layers, Hash, Info, Eye,
+    FlaskConical, Layers, Hash, Info, Eye,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { api } from '@/lib/api-client';
@@ -259,14 +259,23 @@ export default function RecuperationColisPage() {
         }
     };
 
-    const resetAll = () => {
+    const resetAll = useCallback(() => {
         setResult(null);
         setError(null);
         setOtpCode('');
         setPhoto(null);
         setPhotoPreview(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
-    };
+    }, []);
+
+    useEffect(() => {
+        if (result) {
+            const timer = setTimeout(() => {
+                resetAll();
+            }, 7000);
+            return () => clearTimeout(timer);
+        }
+    }, [result, resetAll]);
 
     return (
         <DashboardLayout title="Récupération de colis">
@@ -289,13 +298,12 @@ export default function RecuperationColisPage() {
                 {result ? (
                     <div className="space-y-4">
                         <PickupResultCard data={result} />
-                        <button
-                            onClick={resetAll}
-                            className="w-full flex items-center justify-center gap-2 px-5 py-3 border-2 border-[#22C55E] text-[#22C55E] text-[14px] font-semibold rounded-xl hover:bg-[#F0FDF4] transition-colors"
-                        >
-                            <ArrowRight size={16} />
-                            Nouvelle récupération
-                        </button>
+                        <div className="flex items-center justify-center py-2">
+                            <p className="text-[12px] text-[#94A3B8] flex items-center gap-2">
+                                <Loader2 size={14} className="animate-spin" />
+                                Redirection automatique dans 7 secondes...
+                            </p>
+                        </div>
                     </div>
                 ) : (
                     <div className="space-y-4">
