@@ -28,7 +28,7 @@ const options = {
 
 function test(idx) {
     if (idx >= endpoints.length) return;
-    const url = `https://e-doctorpharma.onrender.com${endpoints[idx]}`;
+    const url = `https://api.edrtimpharmacie.com${endpoints[idx]}`;
     console.log(`Testing ${url}...`);
     const req = https.request(url, options, (res) => {
         console.log(`${endpoints[idx]} -> Status: ${res.statusCode}`);

@@ -1,7 +1,7 @@
 import https from 'https';
 
 // Configuration
-const HOSTNAME = 'e-doctorpharma.onrender.com';
+const HOSTNAME = 'api.edrtimpharmacie.com';
 const PORT = 443;
 const CREDENTIALS = {
     telephone: "699001122",

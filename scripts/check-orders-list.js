@@ -1,6 +1,6 @@
 import https from 'https';
 
-const HOSTNAME = 'e-doctorpharma.onrender.com';
+const HOSTNAME = 'api.edrtimpharmacie.com';
 const PORT = 443;
 
 function fetch(path) {

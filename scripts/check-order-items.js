@@ -7,7 +7,7 @@
  */
 import https from 'https';
 
-const HOSTNAME = 'e-doctorpharma.onrender.com';
+const HOSTNAME = 'api.edrtimpharmacie.com';
 const PORT = 443;
 
 const TOKEN = process.argv[2];

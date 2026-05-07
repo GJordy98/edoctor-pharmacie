@@ -7,7 +7,7 @@ function fetchEndpoint(index) {
     
     const path = endpoints[index];
     const options = {
-        hostname: 'e-doctorpharma.onrender.com',
+        hostname: 'api.edrtimpharmacie.com',
         port: 443,
         path: path,
         method: 'GET',
