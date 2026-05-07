@@ -337,62 +337,56 @@ class ApiClient {
     }
 
     /**
-     * Fetches ALL pharmacy orders by querying each known status in parallel
-     * via /api/v1/officine/{id}/list-officine-orders-pending/?status=X.
-     * Results are merged and deduplicated by officine-order ID.
+     * Fetches ALL pharmacy orders for the authenticated user's officine.
+     * Uses GET /api/v1/officine-order/get_order_by_officine/ — backend filters
+     * by the authenticated user's pharmacy automatically via JWT.
+     * Frontend filtering (by status, payment, search) happens client-side.
      */
-    public async getAllOrdersByOfficine(officineId: string): Promise<APIOrderListResponseItem[]> {
-        const STATUSES = [
-            'PENDING',
-            'PENDING_PATIENT',
-            'APPROVED',
-            'REJECTED',
-            'READY_FOR_PICKUP',
-            'PICKED_UP',
-            'CANCELLED',
-            'COMPLETED',
-        ];
-
-        // Fetch each status silently — backend may reject unknown statuses with
-        // {"detail":"invalid status"}, so we catch per-request and return [] on error.
-        const perStatusResults = await Promise.all(
-            STATUSES.map(async (s) => {
-                try {
-                    const data = await fetch(
-                        `${API_BASE_URL}/api/v1/officine/${officineId}/list-officine-orders-pending/?status=${s}`,
-                        {
-                            headers: {
-                                'Content-Type': 'application/json',
-                                ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
-                            },
-                        }
-                    );
-                    if (!data.ok) return [];          // silently skip invalid/unsupported statuses
-                    const json: unknown = await data.json();
-                    return Array.isArray(json)
-                        ? (json as APIOrderListResponseItem[])
-                        : Array.isArray((json as { results?: unknown })?.results)
-                            ? ((json as { results: APIOrderListResponseItem[] }).results)
-                            : [];
-                } catch {
-                    return [];                        // network error — skip silently
-                }
-            })
-        );
-
-        const merged: APIOrderListResponseItem[] = [];
-        const seen = new Set<string>();
-
-        for (const items of perStatusResults) {
-            for (const item of items) {
-                if (item.id && !seen.has(item.id)) {
-                    seen.add(item.id);
-                    merged.push(item);
-                }
-            }
+    public async getAllOrdersByOfficine(_officineId?: string): Promise<APIOrderListResponseItem[]> {
+        try {
+            const res = await this.request<unknown>('/api/v1/officine-order/get_order_by_officine/', { requiresAuth: true });
+            if (Array.isArray(res)) return res as APIOrderListResponseItem[];
+            const paged = res as { results?: APIOrderListResponseItem[]; data?: APIOrderListResponseItem[] };
+            if (Array.isArray(paged?.results)) return paged.results;
+            if (Array.isArray(paged?.data)) return paged.data;
+            return [];
+        } catch {
+            return [];
         }
+    }
 
-        return merged;
+    /**
+     * Fetches pharmacy orders filtered by a specific status from the backend.
+     * Only works with statuses supported by the pending endpoint:
+     * PENDING | PENDING_PATIENT | APPROVED | REJECTED | READY_FOR_PICKUP
+     * For PICKED_UP, CANCELLED, COMPLETED — use getAllOrdersByOfficine() and filter client-side.
+     */
+    public async getOrdersByStatus(officineId: string, status: string): Promise<APIOrderListResponseItem[]> {
+        // Statuses accepted by the backend pending endpoint
+        const SUPPORTED_STATUSES = ['PENDING', 'PENDING_PATIENT', 'APPROVED', 'REJECTED', 'READY_FOR_PICKUP'];
+        if (!SUPPORTED_STATUSES.includes(status.toUpperCase())) {
+            // For unsupported statuses, fetch all and filter client-side
+            const all = await this.getAllOrdersByOfficine(officineId);
+            return all.filter(o => (o.status ?? '').toUpperCase() === status.toUpperCase());
+        }
+        try {
+            const data = await fetch(
+                `${API_BASE_URL}/api/v1/officine/${officineId}/list-officine-orders-pending/?status=${status}`,
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
+                    },
+                }
+            );
+            if (!data.ok) return [];
+            const json: unknown = await data.json();
+            if (Array.isArray(json)) return json as APIOrderListResponseItem[];
+            const paged = json as { results?: APIOrderListResponseItem[] };
+            return Array.isArray(paged?.results) ? paged.results : [];
+        } catch {
+            return [];
+        }
     }
 
     /**
