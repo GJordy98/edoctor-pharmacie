@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { api } from '@/lib/api-client';
 import { ScheduleDayPayload } from '@/lib/types';
+import { useLanguage } from '@/context/LanguageContext';
 import { Clock, Save, Loader2, CheckCircle, XCircle, ShieldAlert } from 'lucide-react';
 
 type DayCode = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
@@ -26,6 +27,7 @@ const DEFAULT_SCHEDULE: ScheduleDayPayload[] = DAYS.map(d => ({
 }));
 
 export default function SchedulePage() {
+    const { t } = useLanguage();
     const [schedule, setSchedule] = useState<ScheduleDayPayload[]>(DEFAULT_SCHEDULE);
     const [savedSchedule, setSavedSchedule] = useState<ScheduleDayPayload[]>(DEFAULT_SCHEDULE);
     const [loading, setLoading]   = useState(true);
@@ -48,7 +50,7 @@ export default function SchedulePage() {
 
         if (!id) {
             setLoading(false);
-            setMessage({ text: 'Officine introuvable. Veuillez vous reconnecter.', ok: false });
+            setMessage({ text: t('schedule.officine_not_found'), ok: false });
             return;
         }
 
@@ -80,7 +82,7 @@ export default function SchedulePage() {
 
     const handleSave = async () => {
         if (!officineId) {
-            setMessage({ text: 'Officine introuvable.', ok: false });
+            setMessage({ text: t('schedule.officine_not_found'), ok: false });
             return;
         }
         setIsSaving(true);
@@ -88,9 +90,9 @@ export default function SchedulePage() {
         try {
             await api.updateSchedule(officineId, { schedules: schedule });
             setSavedSchedule(schedule);
-            setMessage({ text: 'Horaires enregistrés avec succès.', ok: true });
+            setMessage({ text: t('schedule.save_success'), ok: true });
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Erreur lors de la sauvegarde.';
+            const msg = err instanceof Error ? err.message : t('schedule.save_error');
             setMessage({ text: msg, ok: false });
         } finally {
             setIsSaving(false);
@@ -98,7 +100,7 @@ export default function SchedulePage() {
     };
 
     return (
-        <DashboardLayout title="Horaires d'ouverture">
+        <DashboardLayout title={t('schedule.title')}>
             <div className="max-w-3xl mx-auto">
 
                 {/* Header */}
@@ -108,8 +110,8 @@ export default function SchedulePage() {
                             <Clock size={20} className="text-[#22C55E]" />
                         </div>
                         <div>
-                            <h1 className="text-[20px] font-bold text-[#1E293B]">Horaires d&apos;ouverture</h1>
-                            <p className="text-[12px] text-[#94A3B8]">Configurez vos créneaux hebdomadaires</p>
+                            <h1 className="text-[20px] font-bold text-[#1E293B]">{t('schedule.title')}</h1>
+                            <p className="text-[12px] text-[#94A3B8]">{t('schedule.subtitle')}</p>
                         </div>
                     </div>
                     <button
@@ -118,8 +120,8 @@ export default function SchedulePage() {
                         className="flex items-center gap-2 px-4 py-2.5 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-semibold rounded-xl transition-colors disabled:opacity-50 shadow-sm shadow-[#22C55E]/30"
                     >
                         {isSaving
-                            ? <><Loader2 size={15} className="animate-spin" />Enregistrement…</>
-                            : <><Save size={15} />Enregistrer</>
+                            ? <><Loader2 size={15} className="animate-spin" />{t('schedule.saving')}</>
+                            : <><Save size={15} />{t('schedule.save_btn')}</>
                         }
                     </button>
                 </div>
@@ -144,11 +146,11 @@ export default function SchedulePage() {
                     <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm mb-6">
                         <h2 className="text-[14px] font-bold text-[#1E293B] mb-3 flex items-center gap-1.5">
                             <Clock size={16} className="text-[#22C55E]" />
-                            Horaires actuellement actifs
+                            {t('schedule.active_schedules')}
                         </h2>
                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
                             {savedSchedule.map((s, idx) => {
-                                const dayLabel = DAYS.find(d => d.key === s.day)?.label ?? s.day;
+                                const dayLabel = t('schedule.days.' + s.day);
                                 const shortDay = dayLabel.slice(0, 3) + '.';
                                 return (
                                     <div key={idx} className={`p-2.5 rounded-xl border text-center transition-all ${
@@ -160,7 +162,7 @@ export default function SchedulePage() {
                                         <p className="text-[10px] mt-0.5 font-medium">{s.open_time} - {s.close_time}</p>
                                         {s.is_guard && (
                                             <span className="inline-block text-[8px] font-extrabold bg-amber-200 text-amber-900 px-1 py-0.5 rounded mt-1 uppercase tracking-wide">
-                                                Garde
+                                                {t('schedule.guard_badge')}
                                             </span>
                                         )}
                                     </div>
@@ -175,21 +177,21 @@ export default function SchedulePage() {
                     {loading ? (
                         <div className="py-20 flex flex-col items-center gap-4">
                             <Loader2 size={32} className="text-[#22C55E] animate-spin" />
-                            <p className="text-[13px] text-[#94A3B8]">Chargement des horaires…</p>
+                            <p className="text-[13px] text-[#94A3B8]">{t('schedule.loading')}</p>
                         </div>
                     ) : (
                         <>
                             {/* Column headers */}
                             <div className="grid grid-cols-[140px_1fr_1fr_auto] gap-3 px-5 py-3 bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider">Jour</span>
-                                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider">Heure ouverture</span>
-                                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider">Heure fermeture</span>
-                                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider">De garde</span>
+                                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider">{t('schedule.col_day')}</span>
+                                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider">{t('schedule.col_open')}</span>
+                                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider">{t('schedule.col_close')}</span>
+                                <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider">{t('schedule.col_guard')}</span>
                             </div>
 
                             <div className="divide-y divide-[#F8FAFC]">
                                 {schedule.map((s) => {
-                                    const dayLabel = DAYS.find(d => d.key === s.day)?.label ?? s.day;
+                                    const dayLabel = t('schedule.days.' + s.day);
                                     return (
                                         <div
                                             key={s.day}
@@ -202,7 +204,7 @@ export default function SchedulePage() {
                                                 <span className="text-[13px] font-semibold text-[#1E293B]">{dayLabel}</span>
                                                 {s.is_guard && (
                                                     <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                                                        <ShieldAlert size={10} />Garde
+                                                        <ShieldAlert size={10} />{t('schedule.guard_badge')}
                                                     </span>
                                                 )}
                                             </div>
@@ -251,7 +253,7 @@ export default function SchedulePage() {
                             <div className="px-5 py-3 bg-[#F8FAFC] border-t border-[#E2E8F0]">
                                 <p className="text-[11px] text-[#94A3B8] flex items-center gap-1.5">
                                     <ShieldAlert size={12} className="text-amber-400" />
-                                    Activez &quot;De garde&quot; pour les jours où votre pharmacie assure une garde nocturne ou hebdomadaire.
+                                    {t('schedule.footer_hint')}
                                 </p>
                             </div>
                         </>

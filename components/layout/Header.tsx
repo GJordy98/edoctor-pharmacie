@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import { Wallet } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 import { api } from '@/lib/api-client';
 import type { PharmaNotification, PharmaWallet } from '@/lib/types';
@@ -12,12 +13,18 @@ const formatBalance = (amount: number) =>
   new Intl.NumberFormat('fr-FR').format(Math.round(amount)) + ' FCFA';
 
 export default function Header() {
+  const { language, setLanguage, t } = useLanguage();
   const [officineName, setOfficineName] = useState('');
   const [officineNumber, setOfficineNumber] = useState('');
   const [notifications, setNotifications] = useState<PharmaNotification[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [wallet, setWallet] = useState<PharmaWallet | null>(null);
   const [officineId, setOfficineId] = useState('');
+
+  const toggleLanguage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setLanguage(language === 'fr' ? 'en' : 'fr');
+  };
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -156,7 +163,7 @@ export default function Header() {
               type="text"
               className="header-search-bar form-control bg-white"
               id="header-search"
-              placeholder="Rechercher"
+              placeholder={t('common.search')}
               spellCheck="false"
               autoComplete="off"
               autoCapitalize="off"
@@ -234,6 +241,20 @@ export default function Header() {
             </a>
           </li>
 
+          {/* Language Toggle */}
+          <li className="header-element header-language-toggle">
+            <a 
+              href="#" 
+              onClick={toggleLanguage} 
+              className="header-link d-flex align-items-center justify-content-center gap-1 text-decoration-none"
+              title={language === 'fr' ? 'Switch to English' : 'Passer en Français'}
+              style={{ cursor: 'pointer' }}
+            >
+              <span className="fs-15">{language === 'fr' ? '🇫🇷' : '🇬🇧'}</span>
+              <span className="fw-semibold fs-12">{language === 'fr' ? 'FR' : 'EN'}</span>
+            </a>
+          </li>
+
           {/* Theme Toggle */}
           <li className="header-element header-theme-mode">
             <a href="#" className="header-link layout-setting">
@@ -302,10 +323,10 @@ export default function Header() {
               <div className="p-3 bg-primary text-fixed-white">
                 <div className="d-flex align-items-center justify-content-between">
                   <p className="mb-0 fs-16">
-                    Notifications
+                    {t('header.notifications')}
                     {unreadCount > 0 && (
                       <span className="badge bg-white text-primary ms-2" style={{ fontSize: '11px' }}>
-                        {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
+                        {unreadCount} {unreadCount > 1 ? t('header.notifs_unread_plural') : t('header.notifs_unread_singular')}
                       </span>
                     )}
                   </p>
@@ -314,7 +335,7 @@ export default function Header() {
                     style={{ cursor: 'pointer', background: 'none' }}
                     onClick={handleClearAll}
                   >
-                    Tout marquer lu
+                    {t('header.clear_all')}
                   </button>
                 </div>
               </div>
@@ -327,12 +348,12 @@ export default function Header() {
                 {loadingNotifs ? (
                   <li className="dropdown-item text-center text-muted py-3">
                     <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                    Chargement…
+                    {t('common.loading')}
                   </li>
                 ) : notifications.length === 0 ? (
                   <li className="dropdown-item text-center text-muted py-4">
                     <i className="ri-notification-off-line fs-24 d-block mb-1"></i>
-                    Aucune notification
+                    {t('header.no_notifications')}
                   </li>
                 ) : (
                   notifications.map((notif) => (
@@ -361,7 +382,7 @@ export default function Header() {
                           <span className="d-block mb-1 fs-12 text-muted">{formatTime(notif.created_at)}</span>
                           {!notif.is_read && (
                             <span className="badge bg-primary-transparent text-primary" style={{ fontSize: '9px' }}>
-                              Nouveau
+                              {t('header.new_badge')}
                             </span>
                           )}
                         </div>
@@ -404,7 +425,7 @@ export default function Header() {
             <div className="main-header-dropdown dropdown-menu pt-0 overflow-hidden header-profile-dropdown dropdown-menu-end" aria-labelledby="mainHeaderProfile">
               <div className="p-3 bg-primary text-fixed-white">
                 <div className="d-flex align-items-center justify-content-between">
-                  <p className="mb-0 fs-16">Profil pharmacie</p>
+                  <p className="mb-0 fs-16">{t('header.profile_title')}</p>
                   <a href="#" className="text-fixed-white"><i className="ti ti-settings-cog"></i></a>
                 </div>
               </div>
@@ -428,7 +449,7 @@ export default function Header() {
                   <ul className="list-unstyled mb-0 sub-list">
                     <li>
                       <Link className="dropdown-item d-flex align-items-center" href="/profile">
-                        <i className="ti ti-settings-cog me-2 fs-18"></i>Profil Pharmacie
+                        <i className="ti ti-settings-cog me-2 fs-18"></i>{t('common.profile')}
                       </Link>
                     </li>
                   </ul>
@@ -437,7 +458,7 @@ export default function Header() {
                   <ul className="list-unstyled mb-0 sub-list">
                     <li>
                       <a className="dropdown-item d-flex align-items-center" href="#" onClick={handleLogout}>
-                        <i className="ti ti-logout me-2 fs-18"></i>Se déconnecter
+                        <i className="ti ti-logout me-2 fs-18"></i>{t('common.logout')}
                       </a>
                     </li>
                   </ul>

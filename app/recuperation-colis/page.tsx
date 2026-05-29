@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { api } from '@/lib/api-client';
+import { useLanguage } from '@/context/LanguageContext';
 
 // ── Types ─────────────────────────────────────────────────
 interface PickupItem {
@@ -38,13 +39,14 @@ interface PickupOfficine {
 
 // ── Status badge ──────────────────────────────────────────
 function MissionStatusBadge({ status }: { status?: string }) {
+    const { t } = useLanguage();
     if (!status) return null;
 
     const map: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-        IN_TRANSIT: { label: 'En transit', bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
-        PENDING: { label: 'En attente', bg: '#FFFBEB', text: '#92400E', dot: '#F59E0B' },
-        DELIVERED: { label: 'Livré', bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
-        CANCELLED: { label: 'Annulé', bg: '#FEF2F2', text: '#991B1B', dot: '#EF4444' },
+        IN_TRANSIT: { label: t('recuperation_colis.status_in_transit'), bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
+        PENDING: { label: t('recuperation_colis.status_pending'), bg: '#FFFBEB', text: '#92400E', dot: '#F59E0B' },
+        DELIVERED: { label: t('recuperation_colis.status_delivered'), bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
+        CANCELLED: { label: t('recuperation_colis.status_cancelled'), bg: '#FEF2F2', text: '#991B1B', dot: '#EF4444' },
     };
 
     const config = map[status] ?? { label: status, bg: '#F8FAFC', text: '#475569', dot: '#94A3B8' };
@@ -62,6 +64,7 @@ function MissionStatusBadge({ status }: { status?: string }) {
 
 // ── Item card ─────────────────────────────────────────────
 function MedicamentCard({ item, index }: { item: PickupItem; index: number }) {
+    const { t } = useLanguage();
     return (
         <div className="flex items-start gap-3 p-4 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#22C55E]/40 hover:shadow-sm transition-all">
             {/* Number */}
@@ -77,7 +80,7 @@ function MedicamentCard({ item, index }: { item: PickupItem; index: number }) {
                 <div className="flex items-center gap-1.5">
                     <FlaskConical size={11} className="text-[#94A3B8] shrink-0" />
                     <span className="text-[11px] text-[#64748B]">
-                        <span className="font-medium text-[#475569]">DCI :</span> {item.dci}
+                        <span className="font-medium text-[#475569]">{t('recuperation_colis.dci')} :</span> {item.dci}
                     </span>
                 </div>
 
@@ -85,7 +88,7 @@ function MedicamentCard({ item, index }: { item: PickupItem; index: number }) {
                 <div className="flex items-center gap-1.5">
                     <Layers size={11} className="text-[#94A3B8] shrink-0" />
                     <span className="text-[11px] text-[#64748B]">
-                        <span className="font-medium text-[#475569]">Forme :</span> {item.galenic}
+                        <span className="font-medium text-[#475569]">{t('recuperation_colis.form')} :</span> {item.galenic}
                     </span>
                 </div>
             </div>
@@ -95,6 +98,7 @@ function MedicamentCard({ item, index }: { item: PickupItem; index: number }) {
 
 // ── Pickup Officine Card ───────────────────────────────────
 function PickupOfficineCard({ officine }: { officine: PickupOfficine }) {
+    const { t } = useLanguage();
     const name = officine.name || officine.officine_name || 'Pharmacie';
     const address = [
         officine.adresse?.rue,
@@ -123,7 +127,7 @@ function PickupOfficineCard({ officine }: { officine: PickupOfficine }) {
             </div>
             {officine.orders_count != null && Number(officine.orders_count) > 0 && (
                 <span className="shrink-0 bg-[#22C55E] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {officine.orders_count} colis
+                    {officine.orders_count} {t('recuperation_colis.colis')}
                 </span>
             )}
         </div>
@@ -132,6 +136,7 @@ function PickupOfficineCard({ officine }: { officine: PickupOfficine }) {
 
 // ── Pickup Result card ────────────────────────────────────
 function PickupResultCard({ data }: { data: PickupResult }) {
+    const { t } = useLanguage();
     const items = data.items ?? [];
     const knownKeys = new Set(['message', 'officine', 'mission_status', 'items']);
     const extraEntries = Object.entries(data).filter(([k, v]) => !knownKeys.has(k) && v != null);
@@ -147,7 +152,7 @@ function PickupResultCard({ data }: { data: PickupResult }) {
                         <CheckCircle2 size={22} className="text-white" />
                     </div>
                     <div className="flex-1">
-                        <p className="text-[16px] font-bold">Récupération validée !</p>
+                        <p className="text-[16px] font-bold">{t('recuperation_colis.validated_title')}</p>
                         {data.message && (
                             <p className="text-[12px] text-white/80 mt-0.5">{data.message}</p>
                         )}
@@ -159,7 +164,7 @@ function PickupResultCard({ data }: { data: PickupResult }) {
             <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
                 <div className="px-5 py-3.5 bg-[#F8FAFC] border-b border-[#E2E8F0]">
                     <p className="text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wider">
-                        Informations de la mission
+                        {t('recuperation_colis.mission_info')}
                     </p>
                 </div>
                 <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -170,7 +175,7 @@ function PickupResultCard({ data }: { data: PickupResult }) {
                                 <Building2 size={14} className="text-[#3B82F6]" />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wide">Officine</p>
+                                <p className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wide">{t('recuperation_colis.officine')}</p>
                                 <p className="text-[13px] font-semibold text-[#1E293B] truncate" title={data.officine}>
                                     {data.officine}
                                 </p>
@@ -185,7 +190,7 @@ function PickupResultCard({ data }: { data: PickupResult }) {
                                 <Truck size={14} className="text-[#22C55E]" />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wide">Statut mission</p>
+                                <p className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wide">{t('recuperation_colis.mission_status')}</p>
                                 <MissionStatusBadge status={data.mission_status} />
                             </div>
                         </div>
@@ -212,12 +217,12 @@ function PickupResultCard({ data }: { data: PickupResult }) {
                     <div className="flex items-center gap-2">
                         <Pill size={14} className="text-[#22C55E]" />
                         <p className="text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wider">
-                            Produits à récupérer
+                            {t('recuperation_colis.products_to_pickup')}
                         </p>
                     </div>
                     {items.length > 0 && (
                         <span className="bg-[#22C55E] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            {items.length} article{items.length > 1 ? 's' : ''}
+                            {items.length} {items.length === 1 ? t('recuperation_colis.article') : t('recuperation_colis.articles')}
                         </span>
                     )}
                 </div>
@@ -226,7 +231,7 @@ function PickupResultCard({ data }: { data: PickupResult }) {
                     {items.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-[#E2E8F0] p-8 text-center">
                             <Pill size={28} className="text-[#CBD5E1] mx-auto mb-2" />
-                            <p className="text-[12px] text-[#94A3B8]">Aucun article retourné par le serveur.</p>
+                            <p className="text-[12px] text-[#94A3B8]">{t('recuperation_colis.no_products_returned')}</p>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -245,6 +250,7 @@ function PickupResultCard({ data }: { data: PickupResult }) {
 type Tab = 'validate' | 'officines';
 
 export default function RecuperationColisPage() {
+    const { t } = useLanguage();
     const [otpCode, setOtpCode] = useState('');
     const [step, setStep] = useState<1 | 2>(1);
     const [photo, setPhoto] = useState<File | null>(null);
@@ -261,7 +267,7 @@ export default function RecuperationColisPage() {
     const loadPackageDetails = async () => {
         const trimmed = otpCode.trim();
         if (!trimmed) {
-            setError('Veuillez saisir ou scanner un code.');
+            setError(t('recuperation_colis.error_no_code'));
             return;
         }
 
@@ -293,7 +299,7 @@ export default function RecuperationColisPage() {
                 setLoadedItems(formatted);
                 setStep(2);
             } catch (err: any) {
-                setError("Impossible de charger les médicaments associés à ce code. Assurez-vous qu'il s'agit d'une commande valide.");
+                setError(t('recuperation_colis.error_load_failed'));
             } finally {
                 setLoadingItems(false);
             }
@@ -334,11 +340,11 @@ export default function RecuperationColisPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!photo) {
-            setError('La photo/vidéo du colis est obligatoire.');
+            setError(t('recuperation_colis.error_photo_required'));
             return;
         }
         if (!otpCode.trim()) {
-            setError('Le code de récupération est manquant.');
+            setError(t('recuperation_colis.error_code_missing'));
             return;
         }
 
@@ -360,7 +366,7 @@ export default function RecuperationColisPage() {
             setStep(1);
             if (fileInputRef.current) fileInputRef.current.value = '';
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Erreur de validation ou code incorrect.';
+            const msg = err instanceof Error ? err.message : t('recuperation_colis.error_validation_failed');
             setError(msg);
         } finally {
             setLoading(false);
@@ -388,7 +394,7 @@ export default function RecuperationColisPage() {
     }, [result, resetAll]);
 
     return (
-        <DashboardLayout title="Récupération de colis">
+        <DashboardLayout title={t('recuperation_colis.title')}>
             <div className="space-y-6 max-w-2xl mx-auto">
 
                 {/* ── Header ── */}
@@ -397,9 +403,9 @@ export default function RecuperationColisPage() {
                         <PackageSearch size={22} className="text-white" />
                     </div>
                     <div>
-                        <h2 className="text-[20px] font-bold text-[#1E293B]">Récupération de colis</h2>
+                        <h2 className="text-[20px] font-bold text-[#1E293B]">{t('recuperation_colis.title')}</h2>
                         <p className="text-[12px] text-[#94A3B8] mt-0.5">
-                            Validez la prise en charge des commandes par les livreurs.
+                            {t('recuperation_colis.subtitle')}
                         </p>
                     </div>
                 </div>
@@ -410,7 +416,7 @@ export default function RecuperationColisPage() {
                         <div className="flex items-center justify-center py-2">
                             <p className="text-[12px] text-[#94A3B8] flex items-center gap-2">
                                 <Loader2 size={14} className="animate-spin" />
-                                Redirection automatique dans 7 secondes...
+                                {t('recuperation_colis.redirecting_hint')}
                             </p>
                         </div>
                     </div>
@@ -421,17 +427,17 @@ export default function RecuperationColisPage() {
                             <div className="px-6 py-4 bg-gradient-to-r from-[#F8FAFC] to-white border-b border-[#E2E8F0] flex items-center justify-between">
                                 <div>
                                     <p className="text-[13px] font-semibold text-[#1E293B]">
-                                        {step === 1 ? 'Étape 1 : Identification du colis' : 'Étape 2 : Validation de la collecte'}
+                                        {step === 1 ? t('recuperation_colis.step1_title') : t('recuperation_colis.step2_title')}
                                     </p>
                                     <p className="text-[11px] text-[#94A3B8] mt-0.5">
                                         {step === 1 
-                                            ? 'Saisissez ou scannez le QR code de récupération du colis.' 
-                                            : 'Vérifiez les médicaments puis prenez obligatoirement une photo/vidéo.'
+                                            ? t('recuperation_colis.step1_desc') 
+                                            : t('recuperation_colis.step2_desc')
                                         }
                                     </p>
                                 </div>
                                 <span className="text-[11px] font-bold bg-[#F0FDF4] text-[#22C55E] px-2 py-0.5 rounded-full">
-                                    Étape {step}/2
+                                    {t('recuperation_colis.step_indicator')} {step}/2
                                 </span>
                             </div>
 
@@ -444,7 +450,7 @@ export default function RecuperationColisPage() {
                                             <label className="block text-[13px] font-semibold text-[#1E293B] mb-2">
                                                 <span className="flex items-center gap-2">
                                                     <Hash size={14} className="text-[#22C55E]" />
-                                                    Code QR ou OTP livreur
+                                                    {t('recuperation_colis.qr_or_otp_label')}
                                                     <span className="text-red-500">*</span>
                                                 </span>
                                             </label>
@@ -452,7 +458,7 @@ export default function RecuperationColisPage() {
                                                 <textarea
                                                     id="otpInput"
                                                     className="w-full px-4 py-3 text-[14px] border-2 border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#CBD5E1] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-all font-mono min-h-[80px]"
-                                                    placeholder="Saisissez le code OTP ou collez le contenu du QR Code..."
+                                                    placeholder={t('recuperation_colis.textarea_placeholder')}
                                                     value={otpCode}
                                                     onChange={e => {
                                                         setOtpCode(e.target.value);
@@ -479,7 +485,7 @@ export default function RecuperationColisPage() {
                                                     <AlertCircle size={16} className="text-red-500" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-[13px] font-semibold text-red-700">Erreur</p>
+                                                    <p className="text-[13px] font-semibold text-red-700">{t('common.error')}</p>
                                                     <p className="text-[12px] text-red-600 mt-0.5">{error}</p>
                                                 </div>
                                             </div>
@@ -494,12 +500,12 @@ export default function RecuperationColisPage() {
                                             {loadingItems ? (
                                                 <>
                                                     <Loader2 size={18} className="animate-spin" />
-                                                    Chargement du colis...
+                                                    {t('recuperation_colis.loading_package')}
                                                 </>
                                             ) : (
                                                 <>
                                                     <PackageSearch size={18} />
-                                                    Vérifier le code et continuer
+                                                    {t('recuperation_colis.verify_btn')}
                                                 </>
                                             )}
                                         </button>
@@ -513,7 +519,7 @@ export default function RecuperationColisPage() {
                                         {/* Code Summary */}
                                         <div className="flex items-center justify-between p-3.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
                                             <div className="min-w-0">
-                                                <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wide">Code saisi</span>
+                                                <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wide">{t('recuperation_colis.code_entered_label')}</span>
                                                 <p className="text-[12px] font-mono text-[#1E293B] truncate max-w-sm">{otpCode}</p>
                                             </div>
                                             <button
@@ -524,23 +530,23 @@ export default function RecuperationColisPage() {
                                                 }}
                                                 className="text-[12px] font-bold text-[#22C55E] hover:underline shrink-0"
                                             >
-                                                Modifier
+                                                {t('common.edit')}
                                             </button>
                                         </div>
 
                                         {/* Médicaments à récupérer */}
                                         <div>
                                             <label className="block text-[13px] font-semibold text-[#1E293B] mb-3">
-                                                Médicaments à remettre au livreur
+                                                {t('recuperation_colis.medicines_to_deliver')}
                                             </label>
                                             
                                             {loadedItems.length === 0 ? (
                                                 <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[12px] flex items-start gap-2.5">
                                                     <Info size={16} className="text-amber-600 shrink-0 mt-0.5" />
                                                     <div>
-                                                        <p className="font-semibold">Code OTP Détecté</p>
+                                                        <p className="font-semibold">{t('recuperation_colis.otp_detected_title')}</p>
                                                         <p className="text-amber-700 mt-0.5">
-                                                            Les détails de la commande ne peuvent pas être pré-chargés pour ce type de code. Confirmez la commande physique avec le livreur.
+                                                            {t('recuperation_colis.otp_detected_desc')}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -558,8 +564,8 @@ export default function RecuperationColisPage() {
                                             <label className="block text-[13px] font-semibold text-[#1E293B] mb-2">
                                                 <span className="flex items-center gap-2">
                                                     <Camera size={14} className="text-[#22C55E]" />
-                                                    Prendre en photo / Filmer le colis
-                                                    <span className="text-red-500">* (Obligatoire)</span>
+                                                    {t('recuperation_colis.photo_label')}
+                                                    <span className="text-red-500">{t('recuperation_colis.compulsory_marker')}</span>
                                                 </span>
                                             </label>
 
@@ -578,7 +584,7 @@ export default function RecuperationColisPage() {
                                                             className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-2 bg-white text-[#1E293B] text-[12px] font-semibold rounded-lg shadow"
                                                         >
                                                             <Camera size={13} />
-                                                            Prendre une autre photo
+                                                            {t('recuperation_colis.retake_photo')}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -586,7 +592,7 @@ export default function RecuperationColisPage() {
                                                             className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-2 bg-white text-[#1E293B] text-[12px] font-semibold rounded-lg shadow"
                                                         >
                                                             <Upload size={13} />
-                                                            Importer un autre fichier
+                                                            {t('recuperation_colis.upload_another')}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -594,7 +600,7 @@ export default function RecuperationColisPage() {
                                                             className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 text-[12px] font-semibold rounded-lg shadow"
                                                         >
                                                             <X size={13} />
-                                                            Supprimer
+                                                            {t('common.delete')}
                                                         </button>
                                                     </div>
                                                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
@@ -613,10 +619,10 @@ export default function RecuperationColisPage() {
                                                         </div>
                                                         <div>
                                                             <p className="text-[12px] font-semibold text-[#1E293B] group-hover:text-[#22C55E] transition-colors">
-                                                                Prendre une photo
+                                                                {t('recuperation_colis.take_photo')}
                                                             </p>
                                                             <p className="text-[10px] text-[#94A3B8] mt-0.5">
-                                                                Ouvrir la caméra du téléphone
+                                                                {t('recuperation_colis.open_camera_desc')}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -633,10 +639,10 @@ export default function RecuperationColisPage() {
                                                         </div>
                                                         <div>
                                                             <p className="text-[12px] font-semibold text-[#1E293B] group-hover:text-[#22C55E] transition-colors">
-                                                                Importer un fichier
+                                                                {t('recuperation_colis.upload_file')}
                                                             </p>
                                                             <p className="text-[10px] text-[#94A3B8] mt-0.5">
-                                                                PC, Galerie ou glisser-déposer
+                                                                {t('recuperation_colis.upload_file_desc')}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -668,7 +674,7 @@ export default function RecuperationColisPage() {
                                                     <AlertCircle size={16} className="text-red-500" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-[13px] font-semibold text-red-700">Erreur de validation</p>
+                                                    <p className="text-[13px] font-semibold text-red-700">{t('recuperation_colis.validation_error_title')}</p>
                                                     <p className="text-[12px] text-red-600 mt-0.5">{error}</p>
                                                 </div>
                                             </div>
@@ -685,7 +691,7 @@ export default function RecuperationColisPage() {
                                                 disabled={loading}
                                                 className="flex-1 py-3.5 border border-[#E2E8F0] hover:border-[#1E293B] text-[#94A3B8] hover:text-[#1E293B] text-[13px] font-semibold rounded-xl transition-colors disabled:opacity-40"
                                             >
-                                                Retour
+                                                {t('common.back')}
                                             </button>
                                             <button
                                                 type="submit"
@@ -695,12 +701,12 @@ export default function RecuperationColisPage() {
                                                 {loading ? (
                                                     <>
                                                         <Loader2 size={18} className="animate-spin" />
-                                                        Validation en cours…
+                                                        {t('recuperation_colis.scanning')}
                                                     </>
                                                 ) : (
                                                     <>
                                                         <CheckCircle2 size={18} />
-                                                        Valider la récupération
+                                                        {t('recuperation_colis.validate_pickup')}
                                                     </>
                                                 )}
                                             </button>
@@ -715,20 +721,20 @@ export default function RecuperationColisPage() {
                         <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-5">
                             <p className="text-[13px] font-semibold text-[#1E293B] mb-4 flex items-center gap-2">
                                 <Info size={15} className="text-[#22C55E]" />
-                                Instructions de récupération
+                                {t('recuperation_colis.instructions_title')}
                             </p>
                             <ol className="space-y-3">
                                 {[
-                                    'Scannez le QR Code de retrait ou saisissez le code OTP fourni par le livreur.',
-                                    'Vérifiez la liste des médicaments affichés à l&apos;écran avec le contenu du colis physique.',
-                                    'Prenez une photo ou filmez le colis de façon visible (étape obligatoire pour valider la prise en charge).',
-                                    'Validez la récupération pour changer le statut de la livraison en transit.',
-                                ].map((step, i) => (
+                                    t('recuperation_colis.instruction1'),
+                                    t('recuperation_colis.instruction2'),
+                                    t('recuperation_colis.instruction3'),
+                                    t('recuperation_colis.instruction4'),
+                                ].map((stepText, i) => (
                                     <li key={i} className="flex items-start gap-3">
                                         <span className="w-6 h-6 rounded-full bg-gradient-to-br from-[#22C55E] to-[#16A34A] text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                                             {i + 1}
                                         </span>
-                                        <span className="text-[12px] text-[#64748B] leading-relaxed">{step}</span>
+                                        <span className="text-[12px] text-[#64748B] leading-relaxed">{stepText}</span>
                                     </li>
                                 ))}
                             </ol>

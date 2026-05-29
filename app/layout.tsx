@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import ToastContainer from "@/components/ui/ToastContainer";
 import FcmInitializer from "@/components/FcmInitializer";
+import { LanguageProvider } from "@/context/LanguageContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,10 +29,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className={`${inter.variable} antialiased bg-[#F8FAFC] text-[#1E293B]`}
         style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}
       >
-        {children}
-        <ToastContainer />
-        {/* Initialise Firebase FCM et enregistre le token push */}
-        <FcmInitializer />
+        <LanguageProvider>
+          {children}
+          <ToastContainer />
+          {/* Initialise Firebase FCM et enregistre le token push */}
+          <FcmInitializer />
+        </LanguageProvider>
       </body>
     </html>
   );

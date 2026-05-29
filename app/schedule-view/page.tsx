@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { api } from '@/lib/api-client';
 import { ScheduleDayPayload, Pharmacy } from '@/lib/types';
+import { useLanguage } from '@/context/LanguageContext';
 import { Clock, ShieldAlert, Loader2, AlertCircle, Building2, MapPin, Phone } from 'lucide-react';
 import Link from 'next/link';
 
@@ -20,6 +21,7 @@ const DAYS: { key: DayCode; label: string }[] = [
 ];
 
 export default function ScheduleViewPage() {
+    const { t } = useLanguage();
     const [schedule, setSchedule] = useState<ScheduleDayPayload[]>([]);
     const [pharmacy, setPharmacy] = useState<Pharmacy | null>(null);
     const [loading, setLoading] = useState(true);
@@ -57,7 +59,7 @@ export default function ScheduleViewPage() {
 
         if (!officineId) {
             setLoading(false);
-            setError('Aucune pharmacie sélectionnée pour afficher les horaires.');
+            setError(t('schedule_view.no_pharmacy'));
             return;
         }
 
@@ -66,21 +68,21 @@ export default function ScheduleViewPage() {
                 if (res && Array.isArray(res.schedules)) {
                     setSchedule(res.schedules);
                 } else {
-                    setError('Aucun horaire n\'a été défini par cette pharmacie.');
+                    setError(t('schedule_view.no_schedule'));
                 }
             })
             .catch(() => {
-                setError('Impossible de charger les horaires pour cette pharmacie.');
+                setError(t('schedule_view.fetch_error'));
             })
             .finally(() => setLoading(false));
-    }, []);
+    }, [t]);
 
     const officineAddress = pharmacy
         ? [pharmacy.adresse?.rue, pharmacy.adresse?.city].filter(Boolean).join(', ')
         : '';
 
     return (
-        <DashboardLayout title="Horaires de la pharmacie">
+        <DashboardLayout title={t('schedule_view.title')}>
             <div className="max-w-2xl mx-auto space-y-6">
 
                 {/* Header */}
@@ -89,9 +91,9 @@ export default function ScheduleViewPage() {
                         <Clock size={22} className="text-white" />
                     </div>
                     <div>
-                        <h2 className="text-[20px] font-bold text-[#1E293B]">Horaires d&apos;ouverture</h2>
+                        <h2 className="text-[20px] font-bold text-[#1E293B]">{t('schedule_view.title')}</h2>
                         <p className="text-[12px] text-[#94A3B8] mt-0.5">
-                            Consultez les heures d&apos;ouverture et les jours de garde de l&apos;officine.
+                            {t('schedule_view.subtitle')}
                         </p>
                     </div>
                 </div>
@@ -137,7 +139,7 @@ export default function ScheduleViewPage() {
                 {loading ? (
                     <div className="bg-white rounded-2xl border border-[#E2E8F0] p-12 text-center shadow-sm">
                         <Loader2 size={32} className="text-[#22C55E] animate-spin mx-auto mb-3" />
-                        <p className="text-[13px] text-[#94A3B8]">Chargement des horaires…</p>
+                        <p className="text-[13px] text-[#94A3B8]">{t('schedule_view.loading')}</p>
                     </div>
                 ) : error ? (
                     <div className="bg-white rounded-2xl border border-[#E2E8F0] p-8 text-center shadow-sm space-y-4">
@@ -147,7 +149,7 @@ export default function ScheduleViewPage() {
                         <div>
                             <p className="text-[14px] font-semibold text-[#1E293B]">{error}</p>
                             <p className="text-[12px] text-[#94A3B8] mt-1">
-                                En cas de besoin urgent, veuillez contacter directement la pharmacie par téléphone.
+                                {t('schedule_view.urgent_hint')}
                             </p>
                         </div>
                     </div>
@@ -167,10 +169,10 @@ export default function ScheduleViewPage() {
                                         }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[13px] font-bold text-[#1E293B] w-20">{day.label}</span>
+                                            <span className="text-[13px] font-bold text-[#1E293B] w-20">{t('schedule.days.' + day.key)}</span>
                                             {isGuard && (
                                                 <span className="flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                                    <ShieldAlert size={10} /> De Garde
+                                                    <ShieldAlert size={10} /> {t('schedule.guard_badge')}
                                                 </span>
                                             )}
                                         </div>
@@ -182,7 +184,7 @@ export default function ScheduleViewPage() {
                                                 </span>
                                             ) : (
                                                 <span className="text-[12px] font-medium text-[#94A3B8] italic">
-                                                    Fermé
+                                                    {t('schedule_view.closed')}
                                                 </span>
                                             )}
                                         </div>
@@ -199,7 +201,7 @@ export default function ScheduleViewPage() {
                         href="/orders"
                         className="text-[13px] font-semibold text-[#22C55E] hover:underline"
                     >
-                        Retour aux commandes
+                        {t('schedule_view.back_to_orders')}
                     </Link>
                 </div>
 

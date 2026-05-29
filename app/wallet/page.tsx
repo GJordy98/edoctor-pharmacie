@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { api } from "@/lib/api-client";
 import { PharmaWallet, PharmaTransaction } from "@/lib/types";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   Wallet, PlusCircle, CheckCircle, Lock,
   History, CreditCard, TrendingUp, TrendingDown,
@@ -13,12 +14,6 @@ import {
 const formatPrice = (amount: number) =>
   new Intl.NumberFormat("fr-FR").format(Math.round(amount)) + " FCFA";
 
-const statusLabel: Record<string, string> = {
-  COMPLETED: "Complété",
-  PENDING: "En attente",
-  FAILED: "Échoué",
-};
-
 const statusColors: Record<string, string> = {
   COMPLETED: "bg-green-100 text-green-700",
   PENDING: "bg-orange-100 text-orange-700",
@@ -26,6 +21,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function WalletPage() {
+  const { t, language } = useLanguage();
   const [wallet, setWallet] = useState<PharmaWallet | null>(null);
   const [transactions, setTransactions] = useState<PharmaTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,10 +75,10 @@ export default function WalletPage() {
 
   if (loading) {
     return (
-      <DashboardLayout title="Portefeuille">
+      <DashboardLayout title={t("wallet.title")}>
         <div className="flex flex-col items-center justify-center py-32">
           <Loader2 size={36} className="text-[#22C55E] animate-spin mb-4" />
-          <p className="text-[#94A3B8] text-[14px]">Chargement du portefeuille…</p>
+          <p className="text-[#94A3B8] text-[14px]">{t("wallet.loading")}</p>
         </div>
       </DashboardLayout>
     );
@@ -93,7 +89,7 @@ export default function WalletPage() {
   const availableBalance = safeBalance - safeLocked;
 
   return (
-    <DashboardLayout title="Portefeuille">
+    <DashboardLayout title={t("wallet.title")}>
       <div className="max-w-4xl mx-auto space-y-6">
 
         {/* ── Cartes solde ── */}
@@ -105,14 +101,14 @@ export default function WalletPage() {
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-5">
                 <span className="text-[11px] font-bold uppercase tracking-widest opacity-80">
-                  Solde total
+                  {t("wallet.balance_total")}
                 </span>
                 <div className="flex items-center gap-2">
                   <Wallet size={22} className="opacity-60" />
                   <button
                     onClick={() => fetchData(officineId)}
                     className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
-                    title="Actualiser"
+                    title={t("wallet.refresh")}
                   >
                     <RefreshCw size={13} />
                   </button>
@@ -125,9 +121,9 @@ export default function WalletPage() {
                 </p>
               ) : (
                 <div className="mb-6">
-                  <p className="text-2xl font-black opacity-60">Portefeuille indisponible</p>
+                  <p className="text-2xl font-black opacity-60">{t("wallet.wallet_unavailable")}</p>
                   <p className="text-[12px] opacity-70 mt-1">
-                    Contactez le support si le problème persiste.
+                    {t("wallet.wallet_unavailable_desc")}
                   </p>
                 </div>
               )}
@@ -137,7 +133,7 @@ export default function WalletPage() {
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#22C55E] font-bold text-[13px] rounded-xl shadow hover:scale-105 transition-all"
               >
                 <PlusCircle size={16} />
-                Recharger
+                {t("wallet.recharge_btn")}
               </button>
             </div>
           </div>
@@ -150,7 +146,7 @@ export default function WalletPage() {
                   <div className="flex items-center justify-between p-3.5 bg-green-50 rounded-xl">
                     <div className="flex items-center gap-2">
                       <CheckCircle size={14} className="text-green-600" />
-                      <span className="text-[12px] font-bold text-green-700">Disponible</span>
+                      <span className="text-[12px] font-bold text-green-700">{t("wallet.balance_available")}</span>
                     </div>
                     <span className="text-[13px] font-black text-green-700">
                       {formatPrice(availableBalance)}
@@ -160,7 +156,7 @@ export default function WalletPage() {
                   <div className="flex items-center justify-between p-3.5 bg-orange-50 rounded-xl">
                     <div className="flex items-center gap-2">
                       <Lock size={14} className="text-orange-600" />
-                      <span className="text-[12px] font-bold text-orange-700">Bloqué</span>
+                      <span className="text-[12px] font-bold text-orange-700">{t("wallet.balance_locked")}</span>
                     </div>
                     <span className="text-[13px] font-black text-orange-700">
                       {formatPrice(safeLocked)}
@@ -168,14 +164,14 @@ export default function WalletPage() {
                   </div>
                 </div>
                 <p className="text-[10px] text-[#94A3B8] text-center mt-3 italic">
-                  Fonds réservés pour les remboursements en attente.
+                  {t("wallet.locked_desc")}
                 </p>
               </>
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-3 py-4">
                 <Wallet size={32} className="text-gray-200" />
                 <p className="text-[12px] text-[#94A3B8] text-center">
-                  Aucun portefeuille trouvé
+                  {t("wallet.no_wallet_found")}
                 </p>
               </div>
             )}
@@ -187,11 +183,14 @@ export default function WalletPage() {
           <div className="px-5 py-4 border-b border-[#F1F5F9] flex items-center justify-between">
             <h3 className="text-[15px] font-bold text-[#1E293B] flex items-center gap-2">
               <History size={16} className="text-[#22C55E]" />
-              Historique des transactions
+              {t("wallet.history")}
             </h3>
             {transactions.length > 0 && (
               <span className="text-[11px] text-[#94A3B8]">
-                {transactions.length} transaction{transactions.length > 1 ? "s" : ""}
+                {transactions.length === 1 
+                  ? t("wallet.transaction_count", { count: transactions.length }) 
+                  : t("wallet.transaction_count_plural", { count: transactions.length })
+                }
               </span>
             )}
           </div>
@@ -201,8 +200,8 @@ export default function WalletPage() {
               <div className="w-14 h-14 rounded-2xl bg-[#F8FAFC] flex items-center justify-center">
                 <ClipboardList size={24} className="text-gray-200" />
               </div>
-              <p className="text-[14px] font-semibold text-[#94A3B8]">Aucune transaction</p>
-              <p className="text-[12px] text-[#94A3B8]">Les mouvements apparaîtront ici</p>
+              <p className="text-[14px] font-semibold text-[#94A3B8]">{t("wallet.no_transactions")}</p>
+              <p className="text-[12px] text-[#94A3B8]">{t("wallet.no_transactions_desc")}</p>
             </div>
           ) : (
             <div className="divide-y divide-[#F8FAFC]">
@@ -230,7 +229,7 @@ export default function WalletPage() {
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-[#94A3B8]">
-                          {new Date(tx.created_at).toLocaleDateString("fr-FR", {
+                          {new Date(tx.created_at).toLocaleDateString(language === "fr" ? "fr-FR" : "en-US", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
@@ -241,7 +240,7 @@ export default function WalletPage() {
                             statusColors[tx.status] ?? "bg-gray-100 text-gray-600"
                           }`}
                         >
-                          {statusLabel[tx.status] ?? tx.status}
+                          {t("wallet.status_" + tx.status.toLowerCase())}
                         </span>
                       </div>
                     </div>
@@ -270,17 +269,16 @@ export default function WalletPage() {
                 <Wifi size={28} className="text-[#22C55E]" />
               </div>
               <h3 className="text-[18px] font-black text-[#1E293B] mb-3">
-                Rechargement bientôt disponible
+                {t("wallet.recharge_modal_title")}
               </h3>
               <p className="text-[13px] text-[#94A3B8] mb-6">
-                Nous intégrons les solutions de paiement mobile (Orange Money, MTN Money)
-                pour simplifier vos transactions.
+                {t("wallet.recharge_modal_desc")}
               </p>
               <button
                 onClick={() => setShowRechargeModal(false)}
                 className="w-full py-3 bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold rounded-xl transition-colors"
               >
-                J&apos;ai compris
+                {t("wallet.recharge_modal_close")}
               </button>
             </div>
           </div>

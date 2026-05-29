@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useLanguage } from "@/context/LanguageContext";
 
 import {
   ClipboardList,
@@ -18,25 +19,25 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { href: "/orders", icon: ClipboardList, label: "Commandes" },
-  { href: "/products_list", icon: Pill, label: "Médicaments" },
-  { href: "/add-product", icon: Plus, label: "Ajouter stock" },
-  { href: "/product-history", icon: History, label: "Historique produits" },
-  { href: "/wallet", icon: Wallet, label: "Portefeuille" },
-  { href: "/schedule", icon: Clock, label: "Horaires" },
-  { href: "/recuperation-colis", icon: PackageSearch, label: "Récupération colis" },
+  { href: "/orders", icon: ClipboardList, translationKey: "sidebar.orders" },
+  { href: "/products_list", icon: Pill, translationKey: "sidebar.products" },
+  { href: "/add-product", icon: Plus, translationKey: "sidebar.add_stock" },
+  { href: "/product-history", icon: History, translationKey: "sidebar.product_history" },
+  { href: "/wallet", icon: Wallet, translationKey: "sidebar.wallet" },
+  { href: "/schedule", icon: Clock, translationKey: "sidebar.schedule" },
+  { href: "/recuperation-colis", icon: PackageSearch, translationKey: "sidebar.recuperation_colis" },
 ];
 
 const mobileNavItems = [
-  { href: "/orders", icon: ClipboardList, label: "Commandes" },
-  { href: "/products_list", icon: Pill, label: "Médicaments" },
-  { href: "/recuperation-colis", icon: PackageSearch, label: "Colis" },
-  { href: "/wallet", icon: Wallet, label: "Portefeuille" },
+  { href: "/orders", icon: ClipboardList, translationKey: "sidebar.orders" },
+  { href: "/products_list", icon: Pill, translationKey: "sidebar.products" },
+  { href: "/recuperation-colis", icon: PackageSearch, translationKey: "sidebar.colis" },
+  { href: "/wallet", icon: Wallet, translationKey: "sidebar.wallet" },
 ];
 
 const bottomItems = [
-  { href: "/profile", icon: UserCircle, label: "Profil" },
-  { href: "/settings", icon: Settings, label: "Paramètres" },
+  { href: "/profile", icon: UserCircle, translationKey: "sidebar.profile" },
+  { href: "/settings", icon: Settings, translationKey: "sidebar.settings" },
 ];
 
 function logout() {
@@ -48,6 +49,7 @@ function logout() {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { t } = useLanguage();
 
   const [isPharmacist, setIsPharmacist] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -92,15 +94,15 @@ export default function Sidebar() {
   const activeNavItems = isPharmacist
     ? navItems
     : [
-        ...(orderId ? [{ href: `/patient-order/${orderId}`, icon: ClipboardList, label: "Ma commande" }] : []),
-        { href: "/schedule-view", icon: Clock, label: "Horaires" },
+        ...(orderId ? [{ href: `/patient-order/${orderId}`, icon: ClipboardList, label: t("patient_order.title") }] : []),
+        { href: "/schedule-view", icon: Clock, label: t("sidebar.schedule") },
       ];
 
   const activeMobileNavItems = isPharmacist
     ? mobileNavItems
     : [
-        ...(orderId ? [{ href: `/patient-order/${orderId}`, icon: ClipboardList, label: "Commande" }] : []),
-        { href: "/schedule-view", icon: Clock, label: "Horaires" },
+        ...(orderId ? [{ href: `/patient-order/${orderId}`, icon: ClipboardList, label: t("patient_order.title") }] : []),
+        { href: "/schedule-view", icon: Clock, label: t("sidebar.schedule") },
       ];
 
   const isActive = (href: string) =>
@@ -125,49 +127,59 @@ export default function Sidebar() {
 
         {/* Nav items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {activeNavItems.map(({ href, icon: Icon, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${isActive(href)
-                ? "bg-[#F0FDF4] text-[#22C55E]"
-                : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
-                }`}
-            >
-              {isActive(href) && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-[#22C55E] rounded-r-full" />
-              )}
-              <Icon
-                size={20}
-                className={isActive(href) ? "text-[#22C55E]" : "text-[#94A3B8] group-hover:text-[#1E293B]"}
-              />
-              <span className="text-[14px] font-medium">{label}</span>
-            </Link>
-          ))}
+          {activeNavItems.map((item) => {
+            const href = item.href;
+            const Icon = item.icon;
+            const label = 'translationKey' in item ? t(item.translationKey) : item.label;
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${isActive(href)
+                  ? "bg-[#F0FDF4] text-[#22C55E]"
+                  : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+                  }`}
+              >
+                {isActive(href) && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-[#22C55E] rounded-r-full" />
+                )}
+                <Icon
+                  size={20}
+                  className={isActive(href) ? "text-[#22C55E]" : "text-[#94A3B8] group-hover:text-[#1E293B]"}
+                />
+                <span className="text-[14px] font-medium">{label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Bottom */}
         {isPharmacist && (
           <div className="px-3 py-4 border-t border-[#E2E8F0] space-y-1">
-            {bottomItems.map(({ href, icon: Icon, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive(href)
-                  ? "bg-[#F0FDF4] text-[#22C55E]"
-                  : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
-                  }`}
-              >
-                <Icon size={20} />
-                <span className="text-[14px] font-medium">{label}</span>
-              </Link>
-            ))}
+            {bottomItems.map((item) => {
+              const href = item.href;
+              const Icon = item.icon;
+              const label = t(item.translationKey);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive(href)
+                    ? "bg-[#F0FDF4] text-[#22C55E]"
+                    : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+                    }`}
+                >
+                  <Icon size={20} />
+                  <span className="text-[14px] font-medium">{label}</span>
+                </Link>
+              );
+            })}
             <button
               onClick={logout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[#EF4444] hover:bg-red-50 transition-all"
             >
               <LogOut size={20} />
-              <span className="text-[14px] font-medium">Déconnexion</span>
+              <span className="text-[14px] font-medium">{t("sidebar.logout_btn")}</span>
             </button>
           </div>
         )}
@@ -176,17 +188,22 @@ export default function Sidebar() {
       {/* ── Mobile Bottom Nav ── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] z-40">
         <div className="flex items-center justify-around px-2 py-2">
-          {activeMobileNavItems.map(({ href, icon: Icon, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl ${isActive(href) ? "text-[#22C55E]" : "text-[#94A3B8]"
-                }`}
-            >
-              <Icon size={20} />
-              <span className="text-[10px] font-medium leading-tight">{label}</span>
-            </Link>
-          ))}
+          {activeMobileNavItems.map((item) => {
+            const href = item.href;
+            const Icon = item.icon;
+            const label = 'translationKey' in item ? t(item.translationKey) : item.label;
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl ${isActive(href) ? "text-[#22C55E]" : "text-[#94A3B8]"
+                  }`}
+              >
+                <Icon size={20} />
+                <span className="text-[10px] font-medium leading-tight">{label}</span>
+              </Link>
+            );
+          })}
           {isPharmacist && (
             <Link
               href="/settings"
@@ -194,7 +211,7 @@ export default function Sidebar() {
                 }`}
             >
               <Settings size={20} />
-              <span className="text-[10px] font-medium leading-tight">Paramètres</span>
+              <span className="text-[10px] font-medium leading-tight">{t("sidebar.settings")}</span>
             </Link>
           )}
         </div>

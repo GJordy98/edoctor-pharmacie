@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useLanguage } from "@/context/LanguageContext";
 import {
     ArrowLeft,
     Building2,
@@ -117,11 +118,36 @@ const PAY_METHODS: PayMethodOption[] = [
 
 /* ─── page ─── */
 export default function PatientOrderDetailPage() {
+    const { t } = useLanguage();
     const { id } = useParams();
     const router = useRouter();
     const orderId = id as string;
 
-        const [order, setOrder] = useState<PatientOrder | null>(null);
+    const payMethods = [
+        {
+            value: "MOMO" as const,
+            label: t("patient_order.pay_momo"),
+            desc: t("patient_order.pay_momo_desc"),
+            icon: Smartphone,
+            color: "border-yellow-400 bg-yellow-50 text-yellow-700",
+        },
+        {
+            value: "OM" as const,
+            label: t("patient_order.pay_om"),
+            desc: t("patient_order.pay_om_desc"),
+            icon: Smartphone,
+            color: "border-orange-400 bg-orange-50 text-orange-700",
+        },
+        {
+            value: "CASH" as const,
+            label: t("patient_order.pay_cash"),
+            desc: t("patient_order.pay_cash_desc"),
+            icon: Banknote,
+            color: "border-green-400 bg-green-50 text-green-700",
+        },
+    ];
+
+    const [order, setOrder] = useState<PatientOrder | null>(null);
     const [items, setItems] = useState<PatientOrderItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -186,12 +212,12 @@ export default function PatientOrderDetailPage() {
             setError(
                 err instanceof Error
                     ? err.message
-                    : "Impossible de charger la commande."
+                    : t("patient_order.error_loading")
             );
         } finally {
             setIsLoading(false);
         }
-    }, [orderId]);
+    }, [orderId, t]);
 
     useEffect(() => {
         loadOrder();
@@ -228,7 +254,7 @@ export default function PatientOrderDetailPage() {
             setQrData(res);
         } catch (err) {
             setQrError(
-                err instanceof Error ? err.message : "Impossible de générer le QR code."
+                err instanceof Error ? err.message : t("patient_order.qr_modal_error")
             );
         } finally {
             setQrLoading(false);
@@ -238,7 +264,7 @@ export default function PatientOrderDetailPage() {
     /* ── Payment handler ── */
     const handlePay = async () => {
         if ((payMethod === "MOMO" || payMethod === "OM") && !phoneNumber.trim()) {
-            showToast("Veuillez saisir votre numéro de téléphone.", "warning");
+            showToast(t("patient_order.toast_phone_required"), "warning");
             return;
         }
 
@@ -249,13 +275,13 @@ export default function PatientOrderDetailPage() {
                 payment_method: payMethod,
                 phone_number: phoneNumber.trim() || undefined,
             });
-            showToast("Paiement initié avec succès !", "success");
+            showToast(t("patient_order.toast_pay_success"), "success");
             setShowPayModal(false);
             // Reload to get updated status
             await loadOrder();
         } catch (err) {
             showToast(
-                err instanceof Error ? err.message : "Erreur lors du paiement.",
+                err instanceof Error ? err.message : t("patient_order.toast_pay_error"),
                 "error"
             );
         } finally {
@@ -272,12 +298,12 @@ export default function PatientOrderDetailPage() {
     /* ── loading state ── */
     if (isLoading) {
         return (
-            <DashboardLayout title="Ma commande">
+            <DashboardLayout title={t("patient_order.title")}>
                 <div className="flex flex-col items-center justify-center py-24 gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-[#F0FDF4] flex items-center justify-center">
                         <Loader2 size={28} className="animate-spin text-[#22C55E]" />
                     </div>
-                    <p className="text-[14px] text-[#94A3B8]">Chargement de la commande…</p>
+                    <p className="text-[14px] text-[#94A3B8]">{t("patient_order.loading")}</p>
                 </div>
             </DashboardLayout>
         );
@@ -286,19 +312,19 @@ export default function PatientOrderDetailPage() {
     /* ── error state ── */
     if (error || !order) {
         return (
-            <DashboardLayout title="Ma commande">
+            <DashboardLayout title={t("patient_order.title")}>
                 <div className="flex flex-col items-center justify-center py-24 gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center">
                         <AlertCircle size={28} className="text-red-500" />
                     </div>
                     <p className="text-[14px] font-medium text-[#1E293B]">
-                        {error ?? "Commande introuvable"}
+                        {error ?? t("patient_order.not_found")}
                     </p>
                     <button
                         onClick={() => router.back()}
                         className="text-[13px] text-[#22C55E] hover:underline"
                     >
-                        Retour
+                        {t("patient_order.back")}
                     </button>
                 </div>
             </DashboardLayout>
@@ -306,7 +332,7 @@ export default function PatientOrderDetailPage() {
     }
 
     return (
-        <DashboardLayout title="Ma commande">
+        <DashboardLayout title={t("patient_order.title")}>
             <div className="space-y-5 animate-fade-in-up max-w-3xl mx-auto">
 
                 {/* ── Top bar ── */}
@@ -320,17 +346,17 @@ export default function PatientOrderDetailPage() {
                         </button>
                         <div>
                             <h2 className="text-[16px] font-semibold text-[#1E293B]">
-                                Commande{" "}
+                                {t("patient_order.order_number")}{" "}
                                 <span className="font-mono text-[#22C55E]">
                                     #{orderId.slice(0, 8)}
                                 </span>
                             </h2>
                             <nav className="flex items-center gap-1 text-[12px] text-[#94A3B8] mt-0.5">
                                 <Link href="/orders" className="hover:text-[#22C55E]">
-                                    Commandes
+                                    {t("patient_order.breadcrumb_orders")}
                                 </Link>
                                 <span>/</span>
-                                <span>Détails</span>
+                                <span>{t("patient_order.breadcrumb_details")}</span>
                             </nav>
                         </div>
                     </div>
@@ -348,7 +374,7 @@ export default function PatientOrderDetailPage() {
                         </div>
                         <div>
                             <p className="text-[11px] text-[#94A3B8] font-semibold uppercase tracking-wide">
-                                Pharmacie validante
+                                {t("patient_order.validating_pharmacy")}
                             </p>
                             <h3 className="text-[15px] font-bold text-[#1E293B]">
                                 {officine?.name ?? "—"}
@@ -368,7 +394,7 @@ export default function PatientOrderDetailPage() {
                                 </div>
                                 <div>
                                     <p className="text-[10px] text-[#94A3B8] font-semibold uppercase tracking-wide">
-                                        Contact
+                                        {t("patient_order.contact")}
                                     </p>
                                     <p className="font-semibold text-[#1E293B] group-hover:text-[#22C55E] transition-colors">
                                         {officine.telephone}
@@ -385,7 +411,7 @@ export default function PatientOrderDetailPage() {
                                 </div>
                                 <div>
                                     <p className="text-[10px] text-[#94A3B8] font-semibold uppercase tracking-wide">
-                                        Localisation
+                                        {t("patient_order.location")}
                                     </p>
                                     <p className="font-semibold text-[#1E293B]">{officineAddress}</p>
                                 </div>
@@ -398,14 +424,11 @@ export default function PatientOrderDetailPage() {
                         <div className="px-5 pb-5 pt-4 border-t border-[#F1F5F9] bg-[#F8FAFC]/50">
                             <p className="text-[11px] text-[#94A3B8] font-bold uppercase tracking-wide mb-3 flex items-center gap-1.5">
                                 <Clock size={13} className="text-[#22C55E]" />
-                                Horaires d&apos;ouverture
+                                {t("patient_order.schedules")}
                             </p>
                             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
                                 {schedule.map((s, idx) => {
-                                    const daysMap: Record<string, string> = {
-                                        MON: 'Lun', TUE: 'Mar', WED: 'Mer', THU: 'Jeu', FRI: 'Ven', SAT: 'Sam', SUN: 'Dim'
-                                    };
-                                    const dayName = daysMap[s.day] || s.day;
+                                    const dayName = t("schedule.days." + s.day).slice(0, 3);
                                     return (
                                         <div key={idx} className={`p-2 rounded-xl border text-center transition-all ${
                                             s.is_guard 
@@ -416,7 +439,7 @@ export default function PatientOrderDetailPage() {
                                             <p className="text-[10px] mt-0.5 font-medium">{s.open_time} - {s.close_time}</p>
                                             {s.is_guard && (
                                                 <span className="inline-block text-[8px] font-extrabold bg-amber-200 text-amber-900 px-1 py-0.5 rounded mt-1 uppercase tracking-wide">
-                                                    Garde
+                                                    {t("schedule.guard_badge")}
                                                 </span>
                                             )}
                                         </div>
@@ -437,10 +460,10 @@ export default function PatientOrderDetailPage() {
                                 <PackagePlus size={16} className="text-blue-600" />
                             </div>
                             <h3 className="text-[14px] font-semibold text-[#1E293B]">
-                                Proposition du pharmacien
+                                {t("patient_order.pharmacist_proposal")}
                             </h3>
                             <span className="ml-auto text-[11px] font-semibold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                                {subOrderItems.length} article{subOrderItems.length > 1 ? 's' : ''}
+                                {subOrderItems.length} {subOrderItems.length > 1 ? t("patient_order.articles") : t("patient_order.article")}
                             </span>
                         </div>
                         <div className="divide-y divide-[#F1F5F9]">
@@ -454,7 +477,7 @@ export default function PatientOrderDetailPage() {
                                             {item.product?.name ?? item.name ?? `Produit ${idx + 1}`}
                                         </p>
                                         {item.product?.dci && (
-                                            <p className="text-[11px] text-[#94A3B8]">DCI: {item.product.dci}</p>
+                                            <p className="text-[11px] text-[#94A3B8]">{t("recuperation_colis.dci")} : {item.product.dci}</p>
                                         )}
                                     </div>
                                     <span className="text-[12px] font-medium text-[#64748B]">x{item.quantity ?? 1}</span>
@@ -469,10 +492,10 @@ export default function PatientOrderDetailPage() {
                                         setIsValidating(true);
                                         try {
                                             await api.validateOrderByPatient(orderId, 'VALIDATED');
-                                            showToast('Proposition acceptée !', 'success');
+                                            showToast(t("patient_order.toast_accept_success"), 'success');
                                             await loadOrder();
                                         } catch (err) {
-                                            showToast(err instanceof Error ? err.message : 'Erreur de validation', 'error');
+                                            showToast(err instanceof Error ? err.message : t("validate_order.invalid_code_error"), 'error');
                                         } finally {
                                             setIsValidating(false);
                                         }
@@ -481,17 +504,17 @@ export default function PatientOrderDetailPage() {
                                     className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-bold rounded-xl transition-colors disabled:opacity-50"
                                 >
                                     {isValidating ? <Loader2 size={14} className="animate-spin" /> : <ThumbsUp size={14} />}
-                                    Accepter
+                                    {t("patient_order.accept")}
                                 </button>
                                 <button
                                     onClick={async () => {
                                         setIsValidating(true);
                                         try {
                                             await api.validateOrderByPatient(orderId, 'REJECTED');
-                                            showToast('Proposition refusée.', 'error');
+                                            showToast(t("patient_order.toast_reject_success"), 'error');
                                             await loadOrder();
                                         } catch (err) {
-                                            showToast(err instanceof Error ? err.message : 'Erreur de validation', 'error');
+                                            showToast(err instanceof Error ? err.message : t("validate_order.invalid_code_error"), 'error');
                                         } finally {
                                             setIsValidating(false);
                                         }
@@ -500,7 +523,7 @@ export default function PatientOrderDetailPage() {
                                     className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-500 hover:bg-red-600 text-white text-[13px] font-bold rounded-xl transition-colors disabled:opacity-50"
                                 >
                                     {isValidating ? <Loader2 size={14} className="animate-spin" /> : <ThumbsDown size={14} />}
-                                    Refuser
+                                    {t("patient_order.reject")}
                                 </button>
                             </div>
                         )}
@@ -516,18 +539,18 @@ export default function PatientOrderDetailPage() {
                             <ShoppingBag size={16} className="text-[#22C55E]" />
                         </div>
                         <h3 className="text-[14px] font-semibold text-[#1E293B]">
-                            Panier validé
+                            {t("patient_order.items_to_deliver")}
                         </h3>
                         {items.length > 0 && (
                             <span className="ml-auto text-[11px] font-semibold bg-[#F0FDF4] text-[#22C55E] px-2 py-0.5 rounded-full">
-                                {items.length} article{items.length > 1 ? "s" : ""}
+                                {items.length} {items.length > 1 ? t("patient_order.articles") : t("patient_order.article")}
                             </span>
                         )}
                     </div>
 
                     {items.length === 0 ? (
                         <div className="px-5 py-8 text-center text-[13px] text-[#94A3B8]">
-                            Aucun produit dans cette commande.
+                            {t("patient_order.no_items")}
                         </div>
                     ) : (
                         <div className="divide-y divide-[#F1F5F9]">
@@ -564,24 +587,24 @@ export default function PatientOrderDetailPage() {
                                             </p>
                                             {item.product?.dci && (
                                                 <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                                                    DCI : {item.product.dci}
+                                                    {t("recuperation_colis.dci")} : {item.product.dci}
                                                 </p>
                                             )}
 
                                             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                                                 <span className="text-[12px] text-[#64748B]">
-                                                    {fmt(unitPrice, currency)} / unité
+                                                    {fmt(unitPrice, currency)} / {t("patient_order.article")}
                                                 </span>
                                                 <span className="text-[12px] text-[#94A3B8]">×</span>
                                                 <span className="text-[12px] font-medium text-[#1E293B]">
-                                                    Qté : {qty}
+                                                    {t("patient_order.qty_label")}{qty}
                                                 </span>
 
                                                 {/* Warning si quantité disponible ≠ demandée */}
                                                 {qtyDiffers && (
                                                     <span className="flex items-center gap-1 text-[11px] font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
                                                         <AlertCircle size={10} />
-                                                        Dispo : {qtyAvail}
+                                                        {t("patient_order.dispo")}{qtyAvail}
                                                     </span>
                                                 )}
                                             </div>
@@ -608,13 +631,13 @@ export default function PatientOrderDetailPage() {
                             <CreditCard size={16} className="text-purple-500" />
                         </div>
                         <h3 className="text-[14px] font-semibold text-[#1E293B]">
-                            Récapitulatif financier
+                            {t("patient_order.financial_summary")}
                         </h3>
                     </div>
 
                     <div className="px-5 py-5 space-y-3 text-[13px]">
                         <div className="flex justify-between items-center">
-                            <span className="text-[#64748B]">Sous-total produits</span>
+                            <span className="text-[#64748B]">{t("patient_order.subtotal")}</span>
                             <span className="font-semibold text-[#1E293B]">
                                 {fmt(subtotal, currency)}
                             </span>
@@ -622,7 +645,7 @@ export default function PatientOrderDetailPage() {
 
                         {deliveryFee > 0 && (
                             <div className="flex justify-between items-center">
-                                <span className="text-[#64748B]">Frais de livraison</span>
+                                <span className="text-[#64748B]">{t("patient_order.delivery_fee")}</span>
                                 <span className="font-semibold text-[#1E293B]">
                                     {fmt(deliveryFee, currency)}
                                 </span>
@@ -630,7 +653,7 @@ export default function PatientOrderDetailPage() {
                         )}
 
                         <div className="border-t border-[#E2E8F0] pt-3 flex justify-between items-center">
-                            <span className="text-[15px] font-bold text-[#1E293B]">TOTAL À PAYER</span>
+                            <span className="text-[15px] font-bold text-[#1E293B]">{t("patient_order.total_to_pay")}</span>
                             <span className="text-[17px] font-extrabold text-[#22C55E]">
                                 {fmt(total, currency)}
                             </span>
@@ -638,7 +661,7 @@ export default function PatientOrderDetailPage() {
 
                         {/* Payment status */}
                         <div className="flex justify-between items-center pt-1">
-                            <span className="text-[#94A3B8]">Statut paiement</span>
+                            <span className="text-[#94A3B8]">{t("patient_order.payment_status_title")}</span>
                             <StatusBadge status={order.payment_status ?? "UNPAID"} />
                         </div>
                     </div>
@@ -656,7 +679,7 @@ export default function PatientOrderDetailPage() {
                             className="w-full py-4 rounded-2xl font-bold text-[15px] flex items-center justify-center gap-3 bg-[#22C55E] hover:bg-[#16A34A] text-white transition-colors shadow-lg shadow-green-200"
                         >
                             <CreditCard size={20} />
-                            Procéder au paiement
+                            {t("patient_order.pay_now")}
                         </button>
                     )}
 
@@ -665,7 +688,7 @@ export default function PatientOrderDetailPage() {
                         <div className="flex items-center gap-3 px-5 py-4 bg-[#F0FDF4] border border-green-200 rounded-2xl text-[#16A34A]">
                             <CheckCircle2 size={20} className="shrink-0" />
                             <span className="text-[14px] font-semibold">
-                                Paiement confirmé. En attente de la mise à disposition.
+                                {t("patient_order.payment_confirmed_waiting")}
                             </span>
                         </div>
                     )}
@@ -677,7 +700,7 @@ export default function PatientOrderDetailPage() {
                             className="w-full py-4 rounded-2xl font-bold text-[15px] flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-lg shadow-blue-200"
                         >
                             <QrCode size={20} />
-                            Afficher mon QR Code
+                            {t("patient_order.show_qr_code")}
                         </button>
                     )}
 
@@ -685,13 +708,13 @@ export default function PatientOrderDetailPage() {
                     {!isAccepted && !isInPickup && status !== "" && (
                         <div className="px-5 py-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-[13px] text-[#64748B] text-center">
                             {status === "PENDING" &&
-                                "Votre commande est en cours de traitement par la pharmacie."}
+                                t("patient_order.status_pending_desc")}
                             {status === "DELIVERED" &&
-                                "Votre commande a été livrée. Merci !"}
+                                t("patient_order.status_delivered_desc")}
                             {(status === "REJECTED" || status === "CANCELLED") &&
-                                "Cette commande a été refusée ou annulée."}
+                                t("patient_order.status_cancelled_desc")}
                             {status === "IN_DELIVERY" &&
-                                "Votre commande est en cours de livraison."}
+                                t("patient_order.status_in_delivery_desc")}
                         </div>
                     )}
 
@@ -700,7 +723,7 @@ export default function PatientOrderDetailPage() {
                         onClick={() => router.back()}
                         className="w-full py-3 rounded-2xl text-[13px] font-medium border border-[#E2E8F0] text-[#94A3B8] hover:border-[#1E293B] hover:text-[#1E293B] transition-colors"
                     >
-                        Retour
+                        {t("patient_order.back")}
                     </button>
                 </div>
             </div>
@@ -714,7 +737,7 @@ export default function PatientOrderDetailPage() {
                 title={
                     <span className="flex items-center gap-2">
                         <QrCode size={16} className="text-blue-600" />
-                        QR Code de retrait
+                        {t("patient_order.qrcode_title")}
                     </span>
                 }
                 footer={
@@ -723,7 +746,7 @@ export default function PatientOrderDetailPage() {
                             onClick={() => setShowQrModal(false)}
                             className="px-4 py-2 text-[13px] border border-[#E2E8F0] rounded-xl text-[#94A3B8] hover:text-[#1E293B] transition-colors"
                         >
-                            Fermer
+                            {t("patient_order.close")}
                         </button>
                         {(qrData?.qr_code_url ?? qrData?.qr_code ?? qrData?.image) && (
                             <button
@@ -731,7 +754,7 @@ export default function PatientOrderDetailPage() {
                                 className="flex items-center gap-2 px-4 py-2 text-[13px] bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
                             >
                                 <Printer size={14} />
-                                Imprimer
+                                {t("patient_order.print")}
                             </button>
                         )}
                     </>
@@ -742,7 +765,7 @@ export default function PatientOrderDetailPage() {
                         <>
                             <Loader2 size={36} className="animate-spin text-blue-500" />
                             <p className="text-[13px] text-[#94A3B8]">
-                                Génération du QR code…
+                                {t("patient_order.qr_modal_loading")}
                             </p>
                         </>
                     ) : qrError ? (
@@ -770,13 +793,12 @@ export default function PatientOrderDetailPage() {
                             )}
                             <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-center max-w-xs">
                                 <p className="text-[12px] text-blue-700 font-medium">
-                                    Présentez ce QR code à la pharmacie ou au livreur pour
-                                    confirmer le retrait de votre commande.
+                                    {t("patient_order.qrcode_desc")}
                                 </p>
                             </div>
                         </>
                     ) : (
-                        <p className="text-[13px] text-[#94A3B8]">Aucun QR code disponible.</p>
+                        <p className="text-[13px] text-[#94A3B8]">{t("patient_order.no_qr_available")}</p>
                     )}
                 </div>
             </Modal>
@@ -790,7 +812,7 @@ export default function PatientOrderDetailPage() {
                 title={
                     <span className="flex items-center gap-2">
                         <CreditCard size={16} className="text-[#22C55E]" />
-                        Choisir un moyen de paiement
+                        {t("patient_order.payment_method")}
                     </span>
                 }
                 footer={
@@ -800,7 +822,7 @@ export default function PatientOrderDetailPage() {
                             disabled={isPaying}
                             className="px-4 py-2 text-[13px] border border-[#E2E8F0] rounded-xl text-[#94A3B8] hover:text-[#1E293B] transition-colors disabled:opacity-40"
                         >
-                            Annuler
+                            {t("patient_order.cancel")}
                         </button>
                         <button
                             onClick={handlePay}
@@ -812,7 +834,7 @@ export default function PatientOrderDetailPage() {
                             ) : (
                                 <CreditCard size={14} />
                             )}
-                            {isPaying ? "Traitement…" : `Payer ${fmt(total, currency)}`}
+                            {isPaying ? t("patient_order.processing") : `${t("patient_order.pay")} ${fmt(total, currency)}`}
                         </button>
                     </>
                 }
@@ -820,7 +842,7 @@ export default function PatientOrderDetailPage() {
                 <div className="space-y-4">
                     {/* Order summary recap */}
                     <div className="bg-[#F0FDF4] border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between">
-                        <span className="text-[13px] text-[#64748B]">Total à régler</span>
+                        <span className="text-[13px] text-[#64748B]">{t("patient_order.total_due")}</span>
                         <span className="text-[16px] font-extrabold text-[#22C55E]">
                             {fmt(total, currency)}
                         </span>
@@ -829,9 +851,9 @@ export default function PatientOrderDetailPage() {
                     {/* Method selection */}
                     <div className="space-y-2">
                         <p className="text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                            Mode de paiement
+                            {t("patient_order.payment_mode")}
                         </p>
-                        {PAY_METHODS.map((m) => {
+                        {payMethods.map((m) => {
                             const Icon = m.icon;
                             const active = payMethod === m.value;
                             return (
@@ -866,7 +888,7 @@ export default function PatientOrderDetailPage() {
                                 htmlFor="phone-pay"
                                 className="text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide"
                             >
-                                Numéro {payMethod === "MOMO" ? "MTN MoMo" : "Orange Money"}
+                                {t("patient_order.phone_number_title")} {payMethod === "MOMO" ? "MTN MoMo" : "Orange Money"}
                             </label>
                             <div className="relative">
                                 <Phone
@@ -876,7 +898,7 @@ export default function PatientOrderDetailPage() {
                                 <input
                                     id="phone-pay"
                                     type="tel"
-                                    placeholder="Ex : 6XXXXXXXX"
+                                    placeholder={t("patient_order.phone_placeholder")}
                                     value={phoneNumber}
                                     onChange={(e) => setPhoneNumber(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2.5 text-[13px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] transition-colors"
@@ -888,8 +910,7 @@ export default function PatientOrderDetailPage() {
                     {/* CASH info */}
                     {payMethod === "CASH" && (
                         <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-[12px] text-green-700">
-                            Vous réglez en espèces directement à la pharmacie ou au livreur
-                            lors de la remise de votre commande.
+                            {t("patient_order.cash_payment_desc")}
                         </div>
                     )}
                 </div>
