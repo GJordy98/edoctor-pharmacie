@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { api } from "@/lib/api-client";
 import { PharmaNotification, PharmaWallet } from "@/lib/types";
+import { useLanguage } from "@/context/LanguageContext";
 
 import {
   Bell, BellDot, BellOff, RefreshCw,
@@ -20,6 +21,7 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children, title }: DashboardLayoutProps) {
   const router = useRouter();
+  const { language, setLanguage } = useLanguage();
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<PharmaNotification[]>([]);
@@ -31,6 +33,11 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
 
   // ✅ Nom de la pharmacie
   const [pharmacyName, setPharmacyName] = useState("PharmaCare");
+
+  const toggleLanguage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setLanguage(language === 'fr' ? 'en' : 'fr');
+  };
 
   const loadWallet = useCallback(async () => {
     try {
@@ -179,6 +186,15 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
                 </span>
               </div>
             </Link>
+
+            {/* Language Toggle */}
+            <button
+              onClick={toggleLanguage}
+              className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-[#F0FDF4] text-[#94A3B8] hover:text-[#22C55E] transition-colors font-bold text-[12px] uppercase shrink-0"
+              title={language === 'fr' ? 'Switch to English' : 'Passer en Français'}
+            >
+              {language === 'fr' ? 'FR' : 'EN'}
+            </button>
 
             <div className="relative">
               <button
