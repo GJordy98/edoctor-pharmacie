@@ -19,6 +19,7 @@ import { api } from '@/lib/api-client';
 import { Pharmacy, Account } from '@/lib/types';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { showToast } from '@/components/ui/Toast';
+import { useLanguage } from '@/context/LanguageContext';
 
 /* ── helpers ── */
 function SectionCard({
@@ -44,6 +45,7 @@ function SectionCard({
   onCancel: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
@@ -59,7 +61,7 @@ function SectionCard({
             className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold border border-[#E2E8F0] rounded-lg text-[#64748B] hover:border-[#22C55E] hover:text-[#22C55E] transition-colors"
           >
             <Edit2 size={12} />
-            Modifier
+            {t("profile.btn_edit")}
           </button>
         ) : (
           <div className="flex items-center gap-2">
@@ -68,7 +70,7 @@ function SectionCard({
               className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold border border-[#E2E8F0] rounded-lg text-[#94A3B8] hover:text-[#1E293B] transition-colors"
             >
               <X size={12} />
-              Annuler
+              {t("profile.btn_cancel")}
             </button>
             <button
               onClick={onSave}
@@ -76,7 +78,7 @@ function SectionCard({
               className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold bg-[#22C55E] text-white rounded-lg hover:bg-[#16A34A] transition-colors disabled:opacity-50"
             >
               {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              {isSaving ? 'Enregistrement…' : 'Enregistrer'}
+              {isSaving ? t("profile.saving") : t("profile.btn_save")}
             </button>
           </div>
         )}
@@ -100,6 +102,7 @@ const inputCls =
 
 /* ── page ── */
 export default function ProfilePage() {
+  const { t, language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -121,13 +124,13 @@ export default function ProfilePage() {
         const raw = localStorage.getItem('officine');
         const rawAcc = localStorage.getItem('account');
         if (!raw) {
-          setError('Aucune pharmacie identifiée. Veuillez vous reconnecter.');
+          setError(t('profile.errors.no_pharmacy'));
           return;
         }
         const parsed = JSON.parse(raw);
         const officineId = parsed?.id || parsed?.uuid || String(parsed);
         if (!officineId) {
-          setError('ID pharmacie introuvable. Veuillez vous reconnecter.');
+          setError(t('profile.errors.no_pharmacy'));
           return;
         }
         const data = await api.getPharmacy(officineId);
@@ -141,7 +144,7 @@ export default function ProfilePage() {
           setAccountForm(acc);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur lors du chargement du profil.');
+        setError(err instanceof Error ? err.message : t('profile.errors.fetch_failed'));
       } finally {
         setLoading(false);
       }
@@ -171,9 +174,9 @@ export default function ProfilePage() {
         localStorage.setItem('account', JSON.stringify(updated));
       }
       setEditing(e => ({ ...e, [section]: false }));
-      showToast('Modifications enregistrées !', 'success');
+      showToast(t('profile.success.saved'), 'success');
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Erreur lors de la sauvegarde.', 'error');
+      showToast(err instanceof Error ? err.message : t('profile.errors.save_failed'), 'error');
     } finally {
       setSaving(s => ({ ...s, [section]: false }));
     }
@@ -196,10 +199,10 @@ export default function ProfilePage() {
   /* ── états ── */
   if (loading) {
     return (
-      <DashboardLayout title="Profil">
+      <DashboardLayout title={t("profile.title")}>
         <div className="flex flex-col items-center justify-center py-24 gap-3">
           <Loader2 size={32} className="animate-spin text-[#22C55E]" />
-          <p className="text-[14px] text-[#94A3B8]">Chargement du profil…</p>
+          <p className="text-[14px] text-[#94A3B8]">{t("profile.loading")}</p>
         </div>
       </DashboardLayout>
     );
@@ -207,7 +210,7 @@ export default function ProfilePage() {
 
   if (error) {
     return (
-      <DashboardLayout title="Profil">
+      <DashboardLayout title={t("profile.title")}>
         <div className="flex items-center gap-3 px-5 py-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-[13px]">
           <AlertCircle size={16} className="shrink-0" />
           {error}
@@ -219,7 +222,7 @@ export default function ProfilePage() {
   const initial = officine?.name?.charAt(0)?.toUpperCase() ?? '?';
 
   return (
-    <DashboardLayout title="Profil">
+    <DashboardLayout title={t("profile.title")}>
       <div className="space-y-5 animate-fade-in-up max-w-4xl mx-auto">
 
         {/* ── Hero card ── */}
@@ -260,7 +263,7 @@ export default function ProfilePage() {
             <div className="shrink-0">
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-white text-[12px] font-semibold">
                 <CheckCircle2 size={13} />
-                {officine?.status || 'Actif'}
+                {officine?.status === "active" || officine?.status === "ACTIVE" ? t("profile.status_active") : (officine?.status || 'Actif')}
               </div>
             </div>
           </div>
@@ -271,7 +274,7 @@ export default function ProfilePage() {
 
           {/* Infos pharmacie */}
           <SectionCard
-            title="Informations de la pharmacie"
+            title={t("profile.officine_info_title")}
             icon={Store}
             isEditing={editing.officine}
             isSaving={saving.officine}
@@ -281,16 +284,16 @@ export default function ProfilePage() {
           >
             {!editing.officine ? (
               <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Nom" value={officine?.name} />
-                <InfoRow label="Téléphone" value={officine?.telephone} />
+                <InfoRow label={t("profile.lastname")} value={officine?.name} />
+                <InfoRow label={t("profile.telephone")} value={officine?.telephone} />
                 <div className="col-span-2">
-                  <InfoRow label="Description" value={officine?.description} />
+                  <InfoRow label={t("profile.description")} value={officine?.description} />
                 </div>
                 <div className="col-span-2">
                   <InfoRow
-                    label="Date de création"
+                    label={t("profile.created_at")}
                     value={officine?.created_at
-                      ? new Date(officine.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+                      ? new Date(officine.created_at).toLocaleDateString(language === "fr" ? 'fr-FR' : 'en-US', { day: '2-digit', month: 'long', year: 'numeric' })
                       : undefined}
                   />
                 </div>
@@ -298,31 +301,31 @@ export default function ProfilePage() {
             ) : (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#1E293B] mb-1">Nom de la pharmacie</label>
+                  <label className="block text-[12px] font-semibold text-[#1E293B] mb-1">{t("profile.officine_name")}</label>
                   <input
                     className={inputCls}
                     value={officineForm.name ?? ''}
                     onChange={e => setOfficineForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="Nom de la pharmacie"
+                    placeholder={t("profile.officine_name")}
                   />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#1E293B] mb-1">Téléphone</label>
+                  <label className="block text-[12px] font-semibold text-[#1E293B] mb-1">{t("profile.telephone")}</label>
                   <input
                     className={inputCls}
                     value={officineForm.telephone ?? ''}
                     onChange={e => setOfficineForm(f => ({ ...f, telephone: e.target.value }))}
-                    placeholder="Ex : +237 6xx xxx xxx"
+                    placeholder={t("profile.telephone_placeholder")}
                   />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#1E293B] mb-1">Description</label>
+                  <label className="block text-[12px] font-semibold text-[#1E293B] mb-1">{t("profile.description")}</label>
                   <textarea
                     className={inputCls + ' resize-none'}
                     rows={3}
                     value={officineForm.description ?? ''}
                     onChange={e => setOfficineForm(f => ({ ...f, description: e.target.value }))}
-                    placeholder="Description de la pharmacie"
+                    placeholder={t("profile.description")}
                   />
                 </div>
               </div>
@@ -331,7 +334,7 @@ export default function ProfilePage() {
 
           {/* Adresse */}
           <SectionCard
-            title="Adresse"
+            title={t("profile.address_title")}
             icon={MapPin}
             iconColor="text-blue-500"
             iconBg="bg-blue-50"
@@ -343,19 +346,19 @@ export default function ProfilePage() {
           >
             {!editing.address ? (
               <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Ville" value={officine?.adresse?.city} />
-                <InfoRow label="Quartier" value={officine?.adresse?.quater} />
-                <InfoRow label="Rue" value={officine?.adresse?.rue} />
-                <InfoRow label="Boîte postale" value={officine?.adresse?.bp} />
-                <InfoRow label="Longitude" value={officine?.adresse?.longitude} />
-                <InfoRow label="Latitude" value={officine?.adresse?.latitude} />
+                <InfoRow label={t("profile.city")} value={officine?.adresse?.city} />
+                <InfoRow label={t("profile.quater")} value={officine?.adresse?.quater} />
+                <InfoRow label={t("profile.street")} value={officine?.adresse?.rue} />
+                <InfoRow label={t("profile.bp")} value={officine?.adresse?.bp} />
+                <InfoRow label={t("profile.longitude")} value={officine?.adresse?.longitude} />
+                <InfoRow label={t("profile.latitude")} value={officine?.adresse?.latitude} />
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {(['city', 'quater', 'rue', 'bp'] as const).map((field) => (
                   <div key={field}>
                     <label className="block text-[12px] font-semibold text-[#1E293B] mb-1 capitalize">
-                      {field === 'city' ? 'Ville' : field === 'quater' ? 'Quartier' : field === 'rue' ? 'Rue' : 'Boîte postale'}
+                      {field === 'city' ? t("profile.city") : field === 'quater' ? t("profile.quater") : field === 'rue' ? t("profile.street") : t("profile.bp")}
                     </label>
                     <input
                       className={inputCls}
@@ -370,7 +373,7 @@ export default function ProfilePage() {
 
           {/* Compte */}
           <SectionCard
-            title="Informations du compte"
+            title={t("profile.account_info_title")}
             icon={User}
             iconColor="text-purple-500"
             iconBg="bg-purple-50"
@@ -382,20 +385,20 @@ export default function ProfilePage() {
           >
             {!editing.account ? (
               <div className="grid grid-cols-2 gap-4">
-                <InfoRow label="Nom" value={(account as Record<string, unknown>)?.last_name as string || account?.lastName} />
-                <InfoRow label="Prénom" value={(account as Record<string, unknown>)?.first_name as string || account?.firstName} />
-                <InfoRow label="Email" value={account?.email} />
-                <InfoRow label="Téléphone" value={account?.telephone} />
-                <InfoRow label="Rôle" value={account?.role} />
-                <InfoRow label="Statut" value={account?.status} />
+                <InfoRow label={t("profile.lastname")} value={(account as Record<string, unknown>)?.last_name as string || account?.lastName} />
+                <InfoRow label={t("profile.firstname")} value={(account as Record<string, unknown>)?.first_name as string || account?.firstName} />
+                <InfoRow label={t("profile.email")} value={account?.email} />
+                <InfoRow label={t("profile.telephone")} value={account?.telephone} />
+                <InfoRow label={t("profile.role")} value={account?.role} />
+                <InfoRow label={t("profile.status")} value={account?.status} />
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { field: 'last_name', label: 'Nom' },
-                  { field: 'first_name', label: 'Prénom' },
-                  { field: 'email', label: 'Email' },
-                  { field: 'telephone', label: 'Téléphone' },
+                  { field: 'last_name', label: t("profile.lastname") },
+                  { field: 'first_name', label: t("profile.firstname") },
+                  { field: 'email', label: t("profile.email") },
+                  { field: 'telephone', label: t("profile.telephone") },
                 ].map(({ field, label }) => (
                   <div key={field}>
                     <label className="block text-[12px] font-semibold text-[#1E293B] mb-1">{label}</label>
@@ -416,37 +419,37 @@ export default function ProfilePage() {
               <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
                 <Calendar size={17} className="text-amber-500" />
               </div>
-              <h3 className="text-[14px] font-semibold text-[#1E293B]">Récapitulatif</h3>
+              <h3 className="text-[14px] font-semibold text-[#1E293B]">{t("profile.summary")}</h3>
             </div>
             <div className="p-5 space-y-4">
               <div className="flex items-center gap-3 text-[13px]">
                 <Store size={15} className="text-[#22C55E] shrink-0" />
-                <span className="text-[#94A3B8]">Pharmacie :</span>
+                <span className="text-[#94A3B8]">{t("profile.officine_info_title")} :</span>
                 <span className="font-semibold text-[#1E293B]">{officine?.name}</span>
               </div>
               <div className="flex items-center gap-3 text-[13px]">
                 <MapPin size={15} className="text-blue-500 shrink-0" />
-                <span className="text-[#94A3B8]">Adresse :</span>
+                <span className="text-[#94A3B8]">{t("profile.address_title")} :</span>
                 <span className="font-semibold text-[#1E293B]">
                   {[officine?.adresse?.city, officine?.adresse?.quater].filter(Boolean).join(', ') || '—'}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-[13px]">
                 <Phone size={15} className="text-purple-500 shrink-0" />
-                <span className="text-[#94A3B8]">Téléphone :</span>
+                <span className="text-[#94A3B8]">{t("profile.telephone")} :</span>
                 <span className="font-semibold text-[#1E293B]">{officine?.telephone || '—'}</span>
               </div>
               <div className="flex items-center gap-3 text-[13px]">
                 <Mail size={15} className="text-amber-500 shrink-0" />
-                <span className="text-[#94A3B8]">Email :</span>
+                <span className="text-[#94A3B8]">{t("profile.email")} :</span>
                 <span className="font-semibold text-[#1E293B]">{account?.email || '—'}</span>
               </div>
               <div className="flex items-center gap-3 text-[13px]">
                 <Calendar size={15} className="text-[#94A3B8] shrink-0" />
-                <span className="text-[#94A3B8]">Membre depuis :</span>
+                <span className="text-[#94A3B8]">{t("profile.member_since")}</span>
                 <span className="font-semibold text-[#1E293B]">
                   {officine?.created_at
-                    ? new Date(officine.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+                    ? new Date(officine.created_at).toLocaleDateString(language === "fr" ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' })
                     : '—'}
                 </span>
               </div>

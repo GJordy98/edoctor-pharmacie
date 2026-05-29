@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { api } from '@/lib/api-client';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function SettingsPage() {
+    const { t } = useLanguage();
     const [profileImg, setProfileImg] = useState('/images/faces/pharmacy_profile.png');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -76,7 +78,7 @@ export default function SettingsPage() {
                 reader.readAsDataURL(file);
             } else {
                 e.target.value = '';
-                alert('Veuillez sélectionner une image valide');
+                alert(t('settings.invalid_image_alert'));
             }
         }
     };
@@ -89,10 +91,10 @@ export default function SettingsPage() {
             const accountData = localStorage.getItem('account');
             const newAccount = accountData ? { ...JSON.parse(accountData), ...formData } : { ...formData };
             localStorage.setItem('account', JSON.stringify(newAccount));
-            setMessage({ text: 'Profil mis à jour avec succès', type: 'success' });
+            setMessage({ text: t('settings.save_success'), type: 'success' });
         } catch (error: unknown) {
             console.error(error);
-            setMessage({ text: 'Erreur lors de la mise à jour', type: 'danger' });
+            setMessage({ text: t('settings.save_error'), type: 'danger' });
         } finally {
             setSaving(false);
         }
@@ -100,14 +102,14 @@ export default function SettingsPage() {
 
     if (loading) {
         return (
-            <DashboardLayout title="Paramètres">
+            <DashboardLayout title={t("settings.title")}>
                 <div className="flex items-center justify-center py-24">
                     <div className="flex items-center gap-3 text-[#64748B]">
                         <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                         </svg>
-                        Chargement...
+                        {t("settings.loading")}
                     </div>
                 </div>
             </DashboardLayout>
@@ -115,7 +117,7 @@ export default function SettingsPage() {
     }
 
     return (
-        <DashboardLayout title="Paramètres">
+        <DashboardLayout title={t("settings.title")}>
             <div className="flex flex-col xl:flex-row gap-6 animate-fade-in-up">
 
                 {/* Main card */}
@@ -123,7 +125,7 @@ export default function SettingsPage() {
                     <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
                         {/* Card header */}
                         <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-                            <h2 className="text-[15px] font-semibold text-[#1E293B]">Informations Personnelles</h2>
+                            <h2 className="text-[15px] font-semibold text-[#1E293B]">{t("settings.personal_info")}</h2>
                         </div>
 
                         {/* Card body */}
@@ -143,14 +145,14 @@ export default function SettingsPage() {
                                 {/* Prénom */}
                                 <div>
                                     <label htmlFor="mail-first-name" className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
-                                        Prénom
+                                        {t("settings.firstname")}
                                     </label>
                                     <input
                                         type="text"
                                         id="mail-first-name"
                                         value={formData.firstName}
                                         onChange={handleChange}
-                                        placeholder="Entrer prénom"
+                                        placeholder={t("settings.placeholder_firstname")}
                                         className="w-full px-4 py-2.5 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
                                     />
                                 </div>
@@ -158,14 +160,14 @@ export default function SettingsPage() {
                                 {/* Nom */}
                                 <div>
                                     <label htmlFor="mail-last-name" className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
-                                        Nom
+                                        {t("settings.lastname")}
                                     </label>
                                     <input
                                         type="text"
                                         id="mail-last-name"
                                         value={formData.lastName}
                                         onChange={handleChange}
-                                        placeholder="Entrer nom"
+                                        placeholder={t("settings.placeholder_lastname")}
                                         className="w-full px-4 py-2.5 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
                                     />
                                 </div>
@@ -173,14 +175,14 @@ export default function SettingsPage() {
                                 {/* Email */}
                                 <div>
                                     <label htmlFor="mail-email-address" className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
-                                        Email
+                                        {t("settings.email")}
                                     </label>
                                     <input
                                         type="email"
                                         id="mail-email-address"
                                         value={formData.email}
                                         onChange={handleChange}
-                                        placeholder="Entrer email"
+                                        placeholder={t("settings.placeholder_email")}
                                         className="w-full px-4 py-2.5 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
                                     />
                                 </div>
@@ -188,14 +190,14 @@ export default function SettingsPage() {
                                 {/* Téléphone */}
                                 <div>
                                     <label htmlFor="mail-contact-no" className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
-                                        Téléphone
+                                        {t("settings.telephone")}
                                     </label>
                                     <input
                                         type="tel"
                                         id="mail-contact-no"
                                         value={formData.telephone}
                                         onChange={handleChange}
-                                        placeholder="Entrer téléphone"
+                                        placeholder={t("settings.placeholder_tel")}
                                         className="w-full px-4 py-2.5 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
                                     />
                                 </div>
@@ -203,21 +205,21 @@ export default function SettingsPage() {
                                 {/* Bio */}
                                 <div className="md:col-span-2">
                                     <label htmlFor="mail-description" className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
-                                        Bio
+                                        {t("settings.bio")}
                                     </label>
                                     <textarea
                                         id="mail-description"
                                         rows={3}
                                         value={formData.bio}
                                         onChange={handleChange}
-                                        placeholder="Votre bio..."
+                                        placeholder={t("settings.bio_placeholder")}
                                         className="w-full px-4 py-2.5 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors resize-none"
                                     />
                                 </div>
 
                                 {/* Genre */}
                                 <div>
-                                    <label className="block text-[13px] font-medium text-[#1E293B] mb-2">Genre</label>
+                                    <label className="block text-[13px] font-medium text-[#1E293B] mb-2">{t("settings.gender")}</label>
                                     <div className="flex items-center gap-5">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
@@ -228,7 +230,7 @@ export default function SettingsPage() {
                                                 onChange={handleGenderChange}
                                                 className="accent-[#22C55E] w-4 h-4"
                                             />
-                                            <span className="text-[14px] text-[#1E293B]">Homme</span>
+                                            <span className="text-[14px] text-[#1E293B]">{t("settings.gender_male")}</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
@@ -239,7 +241,7 @@ export default function SettingsPage() {
                                                 onChange={handleGenderChange}
                                                 className="accent-[#22C55E] w-4 h-4"
                                             />
-                                            <span className="text-[14px] text-[#1E293B]">Femme</span>
+                                            <span className="text-[14px] text-[#1E293B]">{t("settings.gender_female")}</span>
                                         </label>
                                     </div>
                                 </div>
@@ -247,7 +249,7 @@ export default function SettingsPage() {
                                 {/* Langue */}
                                 <div>
                                     <label htmlFor="language" className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
-                                        Langue
+                                        {t("settings.language")}
                                     </label>
                                     <select
                                         id="language"
@@ -256,16 +258,16 @@ export default function SettingsPage() {
                                         onChange={handleLanguageChange}
                                         className="w-full px-4 py-2.5 text-[14px] border border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
                                     >
-                                        <option value="English">Anglais</option>
-                                        <option value="French">Français</option>
-                                        <option value="Arabic">Arabe</option>
+                                        <option value="English">{t("settings.lang_english")}</option>
+                                        <option value="French">{t("settings.lang_french")}</option>
+                                        <option value="Arabic">{t("settings.lang_arabic")}</option>
                                     </select>
                                 </div>
 
                                 {/* Photo de profil */}
                                 <div className="md:col-span-2">
                                     <label className="block text-[13px] font-medium text-[#1E293B] mb-2">
-                                        Photo de profil
+                                        {t("settings.profile_picture")}
                                     </label>
                                     <div className="flex items-center gap-5">
                                         <img
@@ -283,7 +285,7 @@ export default function SettingsPage() {
                                                 onChange={handleProfileChange}
                                                 className="block w-full text-[13px] text-[#64748B] file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[13px] file:font-medium file:bg-[#F0FDF4] file:text-[#22C55E] hover:file:bg-[#DCFCE7] transition-colors cursor-pointer"
                                             />
-                                            <p className="text-[12px] text-[#94A3B8] mt-1">PNG, JPG, WEBP — max 2MB</p>
+                                            <p className="text-[12px] text-[#94A3B8] mt-1">{t("settings.profile_picture_hint")}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -296,7 +298,7 @@ export default function SettingsPage() {
                                 onClick={() => window.location.reload()}
                                 className="px-5 py-2.5 text-[14px] font-medium text-[#64748B] bg-white border border-[#E2E8F0] rounded-xl hover:bg-[#F1F5F9] transition-colors"
                             >
-                                Annuler
+                                {t("settings.cancel")}
                             </button>
                             <button
                                 onClick={handleSubmit}
@@ -309,9 +311,9 @@ export default function SettingsPage() {
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                                         </svg>
-                                        Enregistrement...
+                                        {t("settings.saving")}
                                     </>
-                                ) : 'Enregistrer'}
+                                ) : t("settings.save")}
                             </button>
                         </div>
                     </div>
