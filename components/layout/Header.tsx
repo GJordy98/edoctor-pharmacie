@@ -246,12 +246,13 @@ export default function Header() {
             <a 
               href="#" 
               onClick={toggleLanguage} 
-              className="header-link d-flex align-items-center justify-content-center gap-1 text-decoration-none"
+              className="header-link d-flex align-items-center justify-content-center text-decoration-none"
               title={language === 'fr' ? 'Switch to English' : 'Passer en Français'}
               style={{ cursor: 'pointer' }}
             >
-              <span className="fs-15">{language === 'fr' ? '🇫🇷' : '🇬🇧'}</span>
-              <span className="fw-semibold fs-12">{language === 'fr' ? 'FR' : 'EN'}</span>
+              <span className="header-link-icon d-flex align-items-center justify-content-center fw-bold" style={{ fontSize: '11px', textTransform: 'uppercase' }}>
+                {language === 'fr' ? 'FR' : 'EN'}
+              </span>
             </a>
           </li>
 
