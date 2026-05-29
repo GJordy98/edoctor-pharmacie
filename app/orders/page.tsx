@@ -19,6 +19,7 @@ import { api } from "@/lib/api-client";
 import { OrderUI } from "@/lib/types";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { useLanguage } from "@/context/LanguageContext";
 
 /* ── helpers ── */
 function fmt(raw: string | number | undefined): string {
@@ -27,9 +28,9 @@ function fmt(raw: string | number | undefined): string {
   return isNaN(n) ? "0 XAF" : `${Math.round(n).toLocaleString("fr-FR")} XAF`;
 }
 
-function fmtDate(raw: string | undefined): string {
+function fmtDate(raw: string | undefined, lang = "fr-FR"): string {
   if (!raw) return "—";
-  return new Date(raw).toLocaleDateString("fr-FR", {
+  return new Date(raw).toLocaleDateString(lang, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -84,6 +85,7 @@ function StatCard({ label, count, icon: Icon, color, active, onClick }: StatCard
 const ITEMS_PER_PAGE = 15;
 
 export default function OrdersPage() {
+  const { t, language } = useLanguage();
   const [orders, setOrders] = useState<OrderUI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -177,7 +179,7 @@ export default function OrdersPage() {
         return {
           id: item.id,
           patient: patientName,
-          date: fmtDate(item.created_at ?? item.order?.created_at),
+           date: fmtDate(item.created_at ?? item.order?.created_at, language === "fr" ? "fr-FR" : "en-US"),
           total: fmt(totalSource),
           payment: String(item.payment_status ?? item.order?.payment_status ?? "UNPAID").toUpperCase(),
           status: normalizedStatus,
@@ -265,11 +267,11 @@ export default function OrdersPage() {
 
   /* derived stats */
   const stats = [
-    { key: "all", label: "Toutes", count: orders.length, icon: ClipboardList, color: "bg-[#F0FDF4] text-[#22C55E]" },
-    { key: "PENDING", label: "En attente", count: orders.filter((o) => statusGroup(o.status) === "PENDING").length, icon: Clock, color: "bg-orange-50 text-orange-500" },
-    { key: "ACCEPTED", label: "Acceptées", count: orders.filter((o) => statusGroup(o.status) === "ACCEPTED").length, icon: CheckCircle2, color: "bg-green-50 text-green-600" },
-    { key: "REJECTED", label: "Rejetées", count: orders.filter((o) => statusGroup(o.status) === "REJECTED").length, icon: XCircle, color: "bg-red-50 text-red-500" },
-    { key: "COMPLETED", label: "Terminées", count: orders.filter((o) => statusGroup(o.status) === "COMPLETED").length, icon: CheckCircle2, color: "bg-teal-50 text-teal-600" },
+    { key: "all", label: t("orders.card_all"), count: orders.length, icon: ClipboardList, color: "bg-[#F0FDF4] text-[#22C55E]" },
+    { key: "PENDING", label: t("orders.card_pending"), count: orders.filter((o) => statusGroup(o.status) === "PENDING").length, icon: Clock, color: "bg-orange-50 text-orange-500" },
+    { key: "ACCEPTED", label: t("orders.card_accepted"), count: orders.filter((o) => statusGroup(o.status) === "ACCEPTED").length, icon: CheckCircle2, color: "bg-green-50 text-green-600" },
+    { key: "REJECTED", label: t("orders.card_rejected"), count: orders.filter((o) => statusGroup(o.status) === "REJECTED").length, icon: XCircle, color: "bg-red-50 text-red-500" },
+    { key: "COMPLETED", label: t("orders.card_completed"), count: orders.filter((o) => statusGroup(o.status) === "COMPLETED").length, icon: CheckCircle2, color: "bg-teal-50 text-teal-600" },
   ];
 
   const filtered = orders.filter((o) => {
@@ -290,16 +292,16 @@ export default function OrdersPage() {
   const handlePaymentFilter = (v: string) => { setPaymentFilter(v); setCurrentPage(1); };
 
   return (
-    <DashboardLayout title="Commandes">
+    <DashboardLayout title={t("sidebar.orders")}>
       <div className="space-y-5 animate-fade-in-up">
 
         {/* ── Header row ── */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-[18px] font-semibold text-[#1E293B]">Tableau de bord</h2>
+            <h2 className="text-[18px] font-semibold text-[#1E293B]">{t("orders.dashboard_title")}</h2>
             {lastRefresh && (
               <p className="text-[12px] text-[#94A3B8] mt-0.5">
-                Dernière mise à jour : {lastRefresh.toLocaleTimeString("fr-FR")}
+                {t("product_history.last_update", { time: lastRefresh.toLocaleTimeString(language === "fr" ? "fr-FR" : "en-US") })}
               </p>
             )}
           </div>
@@ -309,7 +311,7 @@ export default function OrdersPage() {
             className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[#22C55E] border border-[#22C55E] rounded-xl hover:bg-[#F0FDF4] transition-colors disabled:opacity-50"
           >
             <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
-            Actualiser
+            {t("product_history.refresh")}
           </button>
         </div>
 
@@ -337,7 +339,7 @@ export default function OrdersPage() {
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
               <input
                 type="text"
-                placeholder="Rechercher un patient, ID…"
+                placeholder={t("orders.search_placeholder")}
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
@@ -350,9 +352,9 @@ export default function OrdersPage() {
               onChange={(e) => handlePaymentFilter(e.target.value)}
               className="px-3 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] cursor-pointer"
             >
-              <option value="all">Tous les paiements</option>
-              <option value="PAID">Payé</option>
-              <option value="UNPAID">Non payé</option>
+              <option value="all">{t("orders.filter_payment_all")}</option>
+              <option value="PAID">{t("orders.filter_payment_paid")}</option>
+              <option value="UNPAID">{t("orders.filter_payment_unpaid")}</option>
             </select>
 
             {/* Status filter */}
@@ -361,13 +363,13 @@ export default function OrdersPage() {
               onChange={(e) => handleStatusFilter(e.target.value)}
               className="px-3 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] cursor-pointer"
             >
-              <option value="all">Tous les statuts</option>
-              <option value="PENDING">En attente</option>
-              <option value="ACCEPTED">Acceptée (APPROVED)</option>
-              <option value="IN_PICKUP">Prêt collecte (READY_FOR_PICKUP)</option>
-              <option value="IN_DELIVERY">En livraison (PICKED_UP)</option>
-              <option value="COMPLETED">Terminée</option>
-              <option value="REJECTED">Rejetée / Annulée</option>
+              <option value="all">{t("orders.filter_status_all")}</option>
+              <option value="PENDING">{t("orders.filter_status_pending")}</option>
+              <option value="ACCEPTED">{t("orders.filter_status_accepted_details")}</option>
+              <option value="IN_PICKUP">{t("orders.filter_status_pickup_details")}</option>
+              <option value="IN_DELIVERY">{t("orders.filter_status_delivery_details")}</option>
+              <option value="COMPLETED">{t("orders.filter_status_completed")}</option>
+              <option value="REJECTED">{t("orders.filter_status_rejected_details")}</option>
             </select>
           </div>
 
@@ -377,25 +379,25 @@ export default function OrdersPage() {
               <thead>
                 <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
                   <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    ID Commande
+                    {t("orders.table_id")}
                   </th>
                   <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Patient
+                    {t("orders.table_patient")}
                   </th>
                   <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Date
+                    {t("orders.table_date")}
                   </th>
                   <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Total
+                    {t("orders.table_total")}
                   </th>
                   <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Paiement
+                    {t("orders.table_payment")}
                   </th>
                   <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Statut
+                    {t("orders.table_status")}
                   </th>
                   <th className="text-right px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Actions
+                    {t("common.actions")}
                   </th>
                 </tr>
               </thead>
@@ -407,11 +409,11 @@ export default function OrdersPage() {
                     <td colSpan={7} className="text-center py-16">
                       <ClipboardList size={32} className="text-[#E2E8F0] mx-auto mb-3" />
                       <p className="text-[14px] font-medium text-[#94A3B8]">
-                        {orders.length === 0 ? "Aucune commande" : "Aucun résultat"}
+                        {orders.length === 0 ? t("orders.no_orders_found") : t("product_history.no_results")}
                       </p>
                       {orders.length === 0 && (
                         <p className="text-[12px] text-[#94A3B8] mt-1">
-                          Les nouvelles commandes apparaîtront ici automatiquement.
+                          {t("orders.no_orders_desc")}
                         </p>
                       )}
                     </td>
@@ -432,13 +434,13 @@ export default function OrdersPage() {
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-500"></span>
                               </span>
-                              À traiter
+                              {t("orders.stats_pending_sub")}
                             </span>
                           )}
                           {prescriptionOrders.has(order.id) && (
                             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 uppercase tracking-widest border border-blue-200">
                               <FileImage size={9} />
-                              Ordonnance
+                              {t("orders.prescription_badge")}
                             </span>
                           )}
                         </div>
@@ -461,7 +463,7 @@ export default function OrdersPage() {
                           <Link
                             href={`/order-details/${order.id}`}
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-[#94A3B8] hover:bg-[#F0FDF4] hover:text-[#22C55E] transition-colors"
-                            title="Voir les détails"
+                            title={t("orders.view_details_tooltip")}
                           >
                             <Eye size={15} />
                           </Link>
@@ -469,7 +471,7 @@ export default function OrdersPage() {
                             <Link
                               href={`/order-details/${order.id}`}
                               className="w-8 h-8 flex items-center justify-center rounded-lg text-[#94A3B8] hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                              title="Scanner QR pickup"
+                              title={t("orders.scan_qr_tooltip")}
                             >
                               <QrCode size={15} />
                             </Link>
@@ -488,11 +490,11 @@ export default function OrdersPage() {
           {!isLoading && filtered.length > 0 && (
             <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between flex-wrap gap-3">
               <p className="text-[12px] text-[#94A3B8]">
-                {filtered.length} commande{filtered.length > 1 ? "s" : ""}&nbsp;
+                {filtered.length > 1 ? t("orders.footer_count_plural", { count: filtered.length }) : t("orders.footer_count_singular", { count: filtered.length })}&nbsp;
                 {statusFilter !== "all" || paymentFilter !== "all" || searchTerm
-                  ? "filtrée" + (filtered.length > 1 ? "s" : "")
-                  : "au total"}
-                &nbsp;— Page {currentPage}/{totalPages}
+                  ? (filtered.length > 1 ? t("orders.footer_filtered_plural") : t("orders.footer_filtered"))
+                  : t("orders.footer_total")}
+                &nbsp;{t("orders.footer_page_info", { page: currentPage, total: totalPages })}
               </p>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1">
