@@ -3,15 +3,21 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
+import { Wallet } from 'lucide-react';
 
 import { api } from '@/lib/api-client';
-import type { PharmaNotification } from '@/lib/types';
+import type { PharmaNotification, PharmaWallet } from '@/lib/types';
+
+const formatBalance = (amount: number) =>
+  new Intl.NumberFormat('fr-FR').format(Math.round(amount)) + ' FCFA';
 
 export default function Header() {
   const [officineName, setOfficineName] = useState('');
   const [officineNumber, setOfficineNumber] = useState('');
   const [notifications, setNotifications] = useState<PharmaNotification[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [wallet, setWallet] = useState<PharmaWallet | null>(null);
+  const [officineId, setOfficineId] = useState('');
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -21,14 +27,32 @@ export default function Header() {
       const officine = raw ? JSON.parse(raw) : null;
       const name = officine?.name || officine?.officine_name || 'Pharmacie';
       const number = officine?.telephone || officine?.officine_number || '';
+      const id = officine?.id || officine?.uuid || '';
       queueMicrotask(() => {
         setOfficineName(name);
         setOfficineNumber(number);
+        setOfficineId(id);
       });
     } catch {
       setOfficineName('Pharmacie');
     }
   }, []);
+
+  // Fetch wallet balance
+  useEffect(() => {
+    if (!officineId) return;
+    const fetchWallet = async () => {
+      try {
+        const w = await api.getWallet(officineId);
+        setWallet(w);
+      } catch {
+        // silencieux
+      }
+    };
+    fetchWallet();
+    const interval = setInterval(fetchWallet, 120_000); // refresh every 2min
+    return () => clearInterval(interval);
+  }, [officineId]);
 
   const fetchNotifications = useCallback(async () => {
     setLoadingNotifs(true);
@@ -143,28 +167,56 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Officine Name – centré */}
+        {/* Officine Name + Wallet Balance – centré */}
         <div
           style={{
             position: 'absolute',
             left: '50%',
             top: '50%',
             transform: 'translate(-50%, -50%)',
-            pointerEvents: 'none',
             zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
           }}
         >
           <span
             id="officine_name"
             style={{
               fontWeight: 700,
-              fontSize: '1.05rem',
+              fontSize: '0.95rem',
               whiteSpace: 'nowrap',
               color: 'var(--default-text-color, #333)',
+              pointerEvents: 'none',
             }}
           >
             {officineName}
           </span>
+          {wallet !== null && (
+            <Link
+              href="/wallet"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                color: '#16A34A',
+                whiteSpace: 'nowrap',
+                background: '#F0FDF4',
+                border: '1px solid #BBF7D0',
+                borderRadius: '999px',
+                padding: '2px 10px',
+                textDecoration: 'none',
+                transition: 'background 0.15s',
+              }}
+              title="Voir le portefeuille"
+            >
+              <Wallet size={12} />
+              {formatBalance(Number(wallet.balance ?? 0))}
+            </Link>
+          )}
         </div>
 
 

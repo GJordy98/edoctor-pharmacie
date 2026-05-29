@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Plus,
   Edit2,
@@ -11,10 +11,13 @@ import {
   X,
   Loader2,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { showToast } from "@/components/ui/Toast";
+import { api } from "@/lib/api-client";
+import type { Product } from "@/lib/types";
 
 /* ── skeleton ── */
 function SkeletonRow() {
@@ -31,6 +34,43 @@ function SkeletonRow() {
 
 export default function ProductsPage() {
   const { products, loading, error, deleteProduct } = useProducts();
+
+  // ── Server-side search ──
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [officineId, setOfficineId] = useState('');
+
+  useEffect(() => {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('officine') : null;
+    if (raw) {
+      try { const o = JSON.parse(raw); setOfficineId(o?.id || o?.uuid || ''); } catch { /* */ }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await api.searchProductOfficine({ search: searchQuery.trim(), officine_id: officineId });
+        const list: Product[] = Array.isArray(res) ? (res as Product[]) : Array.isArray((res as { results?: Product[] })?.results) ? (res as { results: Product[] }).results : [];
+        setSearchResults(list);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };
+  }, [searchQuery, officineId]);
+
+  const displayedProducts = searchResults !== null ? searchResults : products;
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -89,11 +129,39 @@ export default function ProductsPage() {
           </div>
         )}
 
+        {/* ── Search bar ── */}
+        <div className="relative">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+          <input
+            type="text"
+            placeholder="Rechercher un médicament par nom, DCI…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-10 py-2.5 text-[13px] border border-[#E2E8F0] rounded-xl bg-white text-[#1E293B] focus:outline-none focus:border-[#22C55E] transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => { setSearchQuery(''); setSearchResults(null); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#1E293B]"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {searching && (
+            <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#22C55E]" />
+          )}
+        </div>
+
 
         {/* ── Table ── */}
         <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#E2E8F0]">
+          <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
             <h3 className="text-[14px] font-semibold text-[#1E293B]">Catalogue</h3>
+            {searchResults !== null && (
+              <span className="text-[11px] text-[#94A3B8]">
+                {searchResults.length} résultat{searchResults.length !== 1 ? 's' : ''} pour « {searchQuery} »
+              </span>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -127,9 +195,9 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9]">
-                {loading ? (
+                {(loading && searchResults === null) ? (
                   Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
-                ) : products.length === 0 ? (
+                ) : displayedProducts.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-16">
                       <Package size={32} className="text-[#E2E8F0] mx-auto mb-3" />
@@ -144,7 +212,7 @@ export default function ProductsPage() {
                     </td>
                   </tr>
                 ) : (
-                  products.map((product, index) => (
+                  displayedProducts.map((product, index) => (
                     <tr key={product.id} className="hover:bg-[#F8FAFC] transition-colors">
                       <td className="px-4 py-3.5 text-[#94A3B8]">{index + 1}</td>
                       <td className="px-4 py-3.5">
@@ -215,9 +283,9 @@ export default function ProductsPage() {
             </table>
           </div>
 
-          {!loading && products.length > 0 && (
+          {(!loading || searchResults !== null) && displayedProducts.length > 0 && (
             <div className="px-4 py-3 border-t border-[#E2E8F0] text-[12px] text-[#94A3B8]">
-              {products.length} médicament{products.length > 1 ? "s" : ""} au total
+              {displayedProducts.length} médicament{displayedProducts.length > 1 ? "s" : ""} {searchResults !== null ? 'trouvés' : 'au total'}
             </div>
           )}
         </div>

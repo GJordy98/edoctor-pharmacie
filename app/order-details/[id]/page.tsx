@@ -21,6 +21,8 @@ import {
   Trash2,
   PackagePlus,
   ZoomIn,
+  Truck,
+  Hash,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { InvoiceResponse, QrCodeResponse, Product } from "@/lib/types";
@@ -175,6 +177,15 @@ export default function OrderDetailsPage() {
   const [subLoading, setSubLoading] = useState(false);
   const [subMsg, setSubMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
+  // Existing sub-order items (pharmacist proposals already sent)
+  const [existingSubItems, setExistingSubItems] = useState<{ id: string; name?: string; product?: { name?: string; dci?: string }; quantity?: number | string; unit_price?: number | string; [key: string]: unknown }[]>([]);
+
+  // Delivery OTP modal
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [deliveryOtp, setDeliveryOtp] = useState('');
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [deliveryMsg, setDeliveryMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
   // officine id
   const [officineId, setOfficineId] = useState("");
   useEffect(() => {
@@ -211,7 +222,6 @@ export default function OrderDetailsPage() {
         const innerOrder = (rawOfficineOrder.order as Record<string, unknown>) ?? rawOfficineOrder;
         const p = innerOrder.patient as Record<string, unknown> | undefined;
 
-        // ✅ "89e1dee5..." — c'est bien l'officine_order_id
         const resolvedOfficineOrderId = rawOfficineOrder.id as string;
         setOfficineOrderId(resolvedOfficineOrderId);
 
@@ -249,6 +259,14 @@ export default function OrderDetailsPage() {
           };
         });
         setItems(mapped);
+      }
+
+      // Load existing sub-order items (pharmacist proposals)
+      try {
+        const subItems = await api.getPatientSubOrderItems(orderId);
+        setExistingSubItems(subItems as typeof existingSubItems);
+      } catch {
+        // silencieux
       }
     } catch {
       showToast("Erreur lors du chargement de la commande.", "error");
@@ -544,6 +562,15 @@ export default function OrderDetailsPage() {
               <QrCode size={14} />
               QR Code
             </button>
+            {(order?.status === 'READY_FOR_PICKUP' || order?.status === 'PICKED_UP' || order?.status === 'APPROVED') && (
+              <button
+                onClick={() => { setShowDeliveryModal(true); setDeliveryMsg(null); setDeliveryOtp(''); }}
+                className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+              >
+                <Truck size={14} />
+                Confirmer livraison
+              </button>
+            )}
             {order?.prescription && (
               <button
                 onClick={() => setShowSubModal(true)}
@@ -898,6 +925,110 @@ export default function OrderDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Delivery OTP Modal ── */}
+      <Modal
+        open={showDeliveryModal}
+        onClose={() => { setShowDeliveryModal(false); setDeliveryMsg(null); setDeliveryOtp(''); }}
+        title={
+          <span className="flex items-center gap-2">
+            <Truck size={16} className="text-blue-600" />
+            Confirmer la livraison
+          </span>
+        }
+        footer={
+          <>
+            <button
+              onClick={() => { setShowDeliveryModal(false); setDeliveryMsg(null); setDeliveryOtp(''); }}
+              disabled={deliveryLoading}
+              className="px-4 py-2 text-[13px] border border-[#E2E8F0] rounded-xl text-[#94A3B8] hover:text-[#1E293B] transition-colors disabled:opacity-40"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={async () => {
+                if (!deliveryOtp.trim() || deliveryOtp.trim().length < 4) {
+                  setDeliveryMsg({ text: 'Entrez un code OTP valide (min. 4 chiffres).', ok: false });
+                  return;
+                }
+                setDeliveryLoading(true);
+                setDeliveryMsg(null);
+                try {
+                  await api.confirmOrderDelivery(officineOrderId || orderId, deliveryOtp.trim());
+                  setDeliveryMsg({ text: 'Livraison confirmée avec succès !', ok: true });
+                  setTimeout(() => {
+                    setShowDeliveryModal(false);
+                    setDeliveryMsg(null);
+                    setDeliveryOtp('');
+                    loadOrder();
+                  }, 1500);
+                } catch (err) {
+                  setDeliveryMsg({ text: err instanceof Error ? err.message : 'Code invalide ou erreur serveur.', ok: false });
+                } finally {
+                  setDeliveryLoading(false);
+                }
+              }}
+              disabled={deliveryLoading || deliveryOtp.trim().length < 4}
+              className="flex items-center gap-2 px-5 py-2 text-[13px] font-bold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {deliveryLoading ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
+              {deliveryLoading ? 'Confirmation...' : 'Valider'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-[13px] text-[#64748B] leading-relaxed">
+            Saisissez le code OTP du patient pour confirmer la remise en main propre de la commande.
+          </p>
+          {deliveryMsg && (
+            <div className={`flex items-center gap-2 text-[13px] px-4 py-3 rounded-xl ${
+              deliveryMsg.ok ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-100 text-red-600'
+            }`}>
+              {deliveryMsg.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+              {deliveryMsg.text}
+            </div>
+          )}
+          <div>
+            <label className="block text-[13px] font-semibold text-[#1E293B] mb-2">
+              <span className="flex items-center gap-2">
+                <Hash size={14} className="text-blue-600" />
+                Code OTP de livraison
+              </span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="ex : 649655"
+              value={deliveryOtp}
+              onChange={(e) => { setDeliveryOtp(e.target.value.replace(/\D/g, '')); setDeliveryMsg(null); }}
+              maxLength={10}
+              autoComplete="off"
+              className="w-full px-4 py-4 text-[28px] font-bold tracking-[0.4em] text-center border-2 border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#CBD5E1] placeholder:tracking-normal placeholder:text-[14px] placeholder:font-normal focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+            />
+            <p className="text-[11px] text-[#94A3B8] mt-1.5 text-center">
+              Ce code a été envoyé au patient lors de la validation de sa commande.
+            </p>
+          </div>
+
+          {existingSubItems.length > 0 && (
+            <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4">
+              <p className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide mb-3">Produits proposés</p>
+              <div className="space-y-2">
+                {existingSubItems.map((item, idx) => (
+                  <div key={String(item.id ?? idx)} className="flex items-center justify-between text-[12px]">
+                    <span className="text-[#1E293B] font-medium">
+                      {item.product?.name ?? item.name ?? `Article ${idx + 1}`}
+                      {item.product?.dci && <span className="text-[#94A3B8] ml-1">({item.product.dci})</span>}
+                    </span>
+                    <span className="text-[#64748B]">x{item.quantity ?? 1}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* ── QR Code Modal ── */}
       <Modal

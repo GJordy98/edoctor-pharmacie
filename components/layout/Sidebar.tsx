@@ -49,6 +49,9 @@ function logout() {
 export default function Sidebar() {
   const pathname = usePathname();
 
+  const [isPharmacist, setIsPharmacist] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
+
   // ✅ Nom dynamique de la pharmacie
   const [pharmacyName, setPharmacyName] = useState("e-Dr TIM");
   const [pharmacyDesc, setPharmacyDesc] = useState("Gestion de pharmacie");
@@ -56,6 +59,7 @@ export default function Sidebar() {
   useEffect(() => {
     const raw = typeof window !== "undefined" ? localStorage.getItem("officine") : null;
     if (raw) {
+      setIsPharmacist(true);
       try {
         const o = JSON.parse(raw);
         if (o.name) setPharmacyName(o.name);
@@ -63,8 +67,41 @@ export default function Sidebar() {
       } catch {
         // silent
       }
+    } else {
+      // Détecter si c'est un patient sur sa commande
+      const sessionRaw = typeof window !== "undefined" ? sessionStorage.getItem("viewing_officine") : null;
+      if (sessionRaw) {
+        try {
+          const o = JSON.parse(sessionRaw);
+          if (o.name) setPharmacyName(o.name);
+          setPharmacyDesc("Pharmacie Partenaire");
+        } catch {
+          // silent
+        }
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      const match = window.location.pathname.match(/\/patient-order\/([^/]+)/);
+      if (match) {
+        setOrderId(match[1]);
+      }
     }
   }, []);
+
+  const activeNavItems = isPharmacist
+    ? navItems
+    : [
+        ...(orderId ? [{ href: `/patient-order/${orderId}`, icon: ClipboardList, label: "Ma commande" }] : []),
+        { href: "/schedule-view", icon: Clock, label: "Horaires" },
+      ];
+
+  const activeMobileNavItems = isPharmacist
+    ? mobileNavItems
+    : [
+        ...(orderId ? [{ href: `/patient-order/${orderId}`, icon: ClipboardList, label: "Commande" }] : []),
+        { href: "/schedule-view", icon: Clock, label: "Horaires" },
+      ];
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -75,7 +112,7 @@ export default function Sidebar() {
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full w-64 bg-white border-r border-[#E2E8F0] z-40">
         {/* Logo */}
         <div className="h-16 flex items-center px-6 border-b border-[#E2E8F0] shrink-0">
-          <Link href="/orders" className="flex items-center gap-3 w-full">
+          <Link href={isPharmacist ? "/orders" : (orderId ? `/patient-order/${orderId}` : "/schedule-view")} className="flex items-center gap-3 w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="Pharmacy Logo" style={{ height: 44, width: 'auto' }} className="object-contain" />
             <div className="min-w-0">
@@ -88,7 +125,7 @@ export default function Sidebar() {
 
         {/* Nav items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map(({ href, icon: Icon, label }) => (
+          {activeNavItems.map(({ href, icon: Icon, label }) => (
             <Link
               key={href}
               href={href}
@@ -110,34 +147,36 @@ export default function Sidebar() {
         </nav>
 
         {/* Bottom */}
-        <div className="px-3 py-4 border-t border-[#E2E8F0] space-y-1">
-          {bottomItems.map(({ href, icon: Icon, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive(href)
-                ? "bg-[#F0FDF4] text-[#22C55E]"
-                : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
-                }`}
+        {isPharmacist && (
+          <div className="px-3 py-4 border-t border-[#E2E8F0] space-y-1">
+            {bottomItems.map(({ href, icon: Icon, label }) => (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive(href)
+                  ? "bg-[#F0FDF4] text-[#22C55E]"
+                  : "text-[#94A3B8] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+                  }`}
+              >
+                <Icon size={20} />
+                <span className="text-[14px] font-medium">{label}</span>
+              </Link>
+            ))}
+            <button
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[#EF4444] hover:bg-red-50 transition-all"
             >
-              <Icon size={20} />
-              <span className="text-[14px] font-medium">{label}</span>
-            </Link>
-          ))}
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[#EF4444] hover:bg-red-50 transition-all"
-          >
-            <LogOut size={20} />
-            <span className="text-[14px] font-medium">Déconnexion</span>
-          </button>
-        </div>
+              <LogOut size={20} />
+              <span className="text-[14px] font-medium">Déconnexion</span>
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* ── Mobile Bottom Nav ── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] z-40">
         <div className="flex items-center justify-around px-2 py-2">
-          {mobileNavItems.map(({ href, icon: Icon, label }) => (
+          {activeMobileNavItems.map(({ href, icon: Icon, label }) => (
             <Link
               key={href}
               href={href}
@@ -148,14 +187,16 @@ export default function Sidebar() {
               <span className="text-[10px] font-medium leading-tight">{label}</span>
             </Link>
           ))}
-          <Link
-            href="/settings"
-            className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl ${pathname === "/settings" ? "text-[#22C55E]" : "text-[#94A3B8]"
-              }`}
-          >
-            <Settings size={20} />
-            <span className="text-[10px] font-medium leading-tight">Paramètres</span>
-          </Link>
+          {isPharmacist && (
+            <Link
+              href="/settings"
+              className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl ${pathname === "/settings" ? "text-[#22C55E]" : "text-[#94A3B8]"
+                }`}
+            >
+              <Settings size={20} />
+              <span className="text-[10px] font-medium leading-tight">Paramètres</span>
+            </Link>
+          )}
         </div>
       </nav>
     </>

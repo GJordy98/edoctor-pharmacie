@@ -18,9 +18,13 @@ import {
     X,
     Smartphone,
     Banknote,
+    ThumbsUp,
+    ThumbsDown,
+    PackagePlus,
+    Clock,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { PatientOrder, PatientOrderItem, QrCodeResponse } from "@/lib/types";
+import { PatientOrder, PatientOrderItem, QrCodeResponse, ScheduleDayPayload } from "@/lib/types";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { showToast } from "@/components/ui/Toast";
@@ -117,10 +121,16 @@ export default function PatientOrderDetailPage() {
     const router = useRouter();
     const orderId = id as string;
 
-    const [order, setOrder] = useState<PatientOrder | null>(null);
+        const [order, setOrder] = useState<PatientOrder | null>(null);
     const [items, setItems] = useState<PatientOrderItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Sub-order proposals from pharmacist
+    const [subOrderItems, setSubOrderItems] = useState<{ id: string; name?: string; product?: { name?: string; dci?: string }; quantity?: number | string; unit_price?: number | string; [key: string]: unknown }[]>([]);
+
+    // Patient validation state
+    const [isValidating, setIsValidating] = useState(false);
 
     // QR Code
     const [showQrModal, setShowQrModal] = useState(false);
@@ -134,6 +144,9 @@ export default function PatientOrderDetailPage() {
     const [phoneNumber, setPhoneNumber] = useState("");
     const [isPaying, setIsPaying] = useState(false);
 
+    // Schedule (Horaires)
+    const [schedule, setSchedule] = useState<ScheduleDayPayload[] | null>(null);
+
     /* ── load order + items in parallel ── */
     const loadOrder = useCallback(async () => {
         setIsLoading(true);
@@ -145,6 +158,30 @@ export default function PatientOrderDetailPage() {
             ]);
             setOrder(orderData);
             setItems(orderItems);
+
+            if (orderData?.officine) {
+                sessionStorage.setItem('viewing_officine', JSON.stringify(orderData.officine));
+            }
+
+            // Load sub-order proposals from pharmacist
+            try {
+                const sub = await api.getPatientSubOrderItems(orderId);
+                setSubOrderItems(sub as typeof subOrderItems);
+            } catch {
+                // silencieux
+            }
+
+            // Load pharmacy schedules
+            if (orderData?.officine?.id) {
+                try {
+                    const schedRes = await api.getSchedule(orderData.officine.id);
+                    if (schedRes && Array.isArray(schedRes.schedules)) {
+                        setSchedule(schedRes.schedules);
+                    }
+                } catch {
+                    // silencieux
+                }
+            }
         } catch (err) {
             setError(
                 err instanceof Error
@@ -355,7 +392,120 @@ export default function PatientOrderDetailPage() {
                             </div>
                         )}
                     </div>
+
+                    {/* Horaires d'ouverture */}
+                    {schedule && schedule.length > 0 && (
+                        <div className="px-5 pb-5 pt-4 border-t border-[#F1F5F9] bg-[#F8FAFC]/50">
+                            <p className="text-[11px] text-[#94A3B8] font-bold uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                                <Clock size={13} className="text-[#22C55E]" />
+                                Horaires d&apos;ouverture
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                                {schedule.map((s, idx) => {
+                                    const daysMap: Record<string, string> = {
+                                        MON: 'Lun', TUE: 'Mar', WED: 'Mer', THU: 'Jeu', FRI: 'Ven', SAT: 'Sam', SUN: 'Dim'
+                                    };
+                                    const dayName = daysMap[s.day] || s.day;
+                                    return (
+                                        <div key={idx} className={`p-2 rounded-xl border text-center transition-all ${
+                                            s.is_guard 
+                                                ? 'bg-amber-50 border-amber-200 text-amber-800' 
+                                                : 'bg-white border-[#E2E8F0] text-[#64748B]'
+                                        }`}>
+                                            <p className="text-[11px] font-bold text-[#1E293B]">{dayName}</p>
+                                            <p className="text-[10px] mt-0.5 font-medium">{s.open_time} - {s.close_time}</p>
+                                            {s.is_guard && (
+                                                <span className="inline-block text-[8px] font-extrabold bg-amber-200 text-amber-900 px-1 py-0.5 rounded mt-1 uppercase tracking-wide">
+                                                    Garde
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
+
+                {/* ═══════════════════════════════ */}
+                {/* B*. PROPOSITION PHARMACIEN      */}
+                {/* ═══════════════════════════════ */}
+                {subOrderItems.length > 0 && (
+                    <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden">
+                        <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                                <PackagePlus size={16} className="text-blue-600" />
+                            </div>
+                            <h3 className="text-[14px] font-semibold text-[#1E293B]">
+                                Proposition du pharmacien
+                            </h3>
+                            <span className="ml-auto text-[11px] font-semibold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                                {subOrderItems.length} article{subOrderItems.length > 1 ? 's' : ''}
+                            </span>
+                        </div>
+                        <div className="divide-y divide-[#F1F5F9]">
+                            {subOrderItems.map((item, idx) => (
+                                <div key={String(item.id ?? idx)} className="flex items-center gap-4 px-5 py-3">
+                                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                        <span className="text-[10px] font-bold text-blue-600">{idx + 1}</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-[13px] font-semibold text-[#1E293B]">
+                                            {item.product?.name ?? item.name ?? `Produit ${idx + 1}`}
+                                        </p>
+                                        {item.product?.dci && (
+                                            <p className="text-[11px] text-[#94A3B8]">DCI: {item.product.dci}</p>
+                                        )}
+                                    </div>
+                                    <span className="text-[12px] font-medium text-[#64748B]">x{item.quantity ?? 1}</span>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Validation buttons: patient accepts or rejects pharmacist proposal */}
+                        {(status === 'PENDING_PATIENT' || status === 'PENDING') && (
+                            <div className="px-5 py-4 border-t border-[#E2E8F0] flex gap-3">
+                                <button
+                                    onClick={async () => {
+                                        setIsValidating(true);
+                                        try {
+                                            await api.validateOrderByPatient(orderId, 'VALIDATED');
+                                            showToast('Proposition acceptée !', 'success');
+                                            await loadOrder();
+                                        } catch (err) {
+                                            showToast(err instanceof Error ? err.message : 'Erreur de validation', 'error');
+                                        } finally {
+                                            setIsValidating(false);
+                                        }
+                                    }}
+                                    disabled={isValidating}
+                                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-bold rounded-xl transition-colors disabled:opacity-50"
+                                >
+                                    {isValidating ? <Loader2 size={14} className="animate-spin" /> : <ThumbsUp size={14} />}
+                                    Accepter
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        setIsValidating(true);
+                                        try {
+                                            await api.validateOrderByPatient(orderId, 'REJECTED');
+                                            showToast('Proposition refusée.', 'error');
+                                            await loadOrder();
+                                        } catch (err) {
+                                            showToast(err instanceof Error ? err.message : 'Erreur de validation', 'error');
+                                        } finally {
+                                            setIsValidating(false);
+                                        }
+                                    }}
+                                    disabled={isValidating}
+                                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-500 hover:bg-red-600 text-white text-[13px] font-bold rounded-xl transition-colors disabled:opacity-50"
+                                >
+                                    {isValidating ? <Loader2 size={14} className="animate-spin" /> : <ThumbsDown size={14} />}
+                                    Refuser
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* ═══════════════════════════════ */}
                 {/* B. PANIER VALIDÉ               */}

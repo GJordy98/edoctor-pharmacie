@@ -4,7 +4,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
     PackageSearch, AlertCircle, CheckCircle2, Loader2,
     Camera, X, Upload, Pill, Building2, Truck,
-    FlaskConical, Layers, Hash, Info, Eye,
+    FlaskConical, Layers, Hash, Info, Eye, MapPin, RefreshCw,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { api } from '@/lib/api-client';
@@ -22,6 +22,17 @@ interface PickupResult {
     officine?: string;
     mission_status?: string;
     items?: PickupItem[];
+    [key: string]: unknown;
+}
+
+interface PickupOfficine {
+    id: string;
+    name?: string;
+    officine_name?: string;
+    telephone?: string;
+    address?: string;
+    adresse?: { rue?: string; city?: string };
+    orders_count?: number;
     [key: string]: unknown;
 }
 
@@ -78,6 +89,43 @@ function MedicamentCard({ item, index }: { item: PickupItem; index: number }) {
                     </span>
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ── Pickup Officine Card ───────────────────────────────────
+function PickupOfficineCard({ officine }: { officine: PickupOfficine }) {
+    const name = officine.name || officine.officine_name || 'Pharmacie';
+    const address = [
+        officine.adresse?.rue,
+        officine.adresse?.city,
+        officine.address,
+    ].filter(Boolean).join(', ');
+    return (
+        <div className="flex items-start gap-3 p-4 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#22C55E]/40 hover:shadow-sm transition-all">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#22C55E] to-[#16A34A] flex items-center justify-center shrink-0 shadow-sm">
+                <Building2 size={18} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-[#1E293B]">{name}</p>
+                {address && (
+                    <div className="flex items-center gap-1 mt-1">
+                        <MapPin size={11} className="text-[#94A3B8] shrink-0" />
+                        <span className="text-[11px] text-[#64748B]">{address}</span>
+                    </div>
+                )}
+                {officine.telephone && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                        <Truck size={11} className="text-[#94A3B8] shrink-0" />
+                        <span className="text-[11px] text-[#64748B]">{String(officine.telephone)}</span>
+                    </div>
+                )}
+            </div>
+            {officine.orders_count != null && Number(officine.orders_count) > 0 && (
+                <span className="shrink-0 bg-[#22C55E] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {officine.orders_count} colis
+                </span>
+            )}
         </div>
     );
 }
@@ -193,17 +241,68 @@ function PickupResultCard({ data }: { data: PickupResult }) {
     );
 }
 
-// ── Main page ─────────────────────────────────────────────
+// ── Main page ────────────────────────────────────────────────
+type Tab = 'validate' | 'officines';
+
 export default function RecuperationColisPage() {
     const [otpCode, setOtpCode] = useState('');
+    const [step, setStep] = useState<1 | 2>(1);
     const [photo, setPhoto] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [loadingItems, setLoadingItems] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<PickupResult | null>(null);
+    const [loadedItems, setLoadedItems] = useState<PickupItem[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const uploadInputRef = useRef<HTMLInputElement>(null);
 
-    const canSubmit = otpCode.trim().length >= 4 && !loading;
+    // Parse code and fetch medicines (Step 1 -> Step 2)
+    const loadPackageDetails = async () => {
+        const trimmed = otpCode.trim();
+        if (!trimmed) {
+            setError('Veuillez saisir ou scanner un code.');
+            return;
+        }
+
+        setLoadingItems(true);
+        setError(null);
+        setLoadedItems([]);
+
+        let orderId = '';
+        try {
+            // Tenter d'analyser comme du JSON (QR code du livreur)
+            const parsed = JSON.parse(trimmed);
+            orderId = parsed.officine_order_id || parsed.pickup_id || '';
+        } catch {
+            // Pas un JSON, vérifier si c'est un UUID valide
+            if (trimmed.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)) {
+                orderId = trimmed;
+            }
+        }
+
+        if (orderId) {
+            try {
+                const items = await api.getPatientSubOrderItems(orderId);
+                const formatted: PickupItem[] = (items ?? []).map((it: any) => ({
+                    id: String(it.id ?? ''),
+                    name: String(it.product_name ?? it.product?.name ?? 'Médicament'),
+                    dci: String(it.product?.dci ?? '—'),
+                    galenic: String(it.product?.galenic_detail?.name ?? it.product?.dosage ?? '—')
+                }));
+                setLoadedItems(formatted);
+                setStep(2);
+            } catch (err: any) {
+                setError("Impossible de charger les médicaments associés à ce code. Assurez-vous qu'il s'agit d'une commande valide.");
+            } finally {
+                setLoadingItems(false);
+            }
+        } else {
+            // Code OTP numérique classique
+            setLoadingItems(false);
+            setStep(2);
+        }
+    };
 
     // ── Photo handling ───────────────────────────
     const handlePhotoChange = useCallback((file: File | null) => {
@@ -234,7 +333,14 @@ export default function RecuperationColisPage() {
     // ── Submit ────────────────────────────────────
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!canSubmit) return;
+        if (!photo) {
+            setError('La photo/vidéo du colis est obligatoire.');
+            return;
+        }
+        if (!otpCode.trim()) {
+            setError('Le code de récupération est manquant.');
+            return;
+        }
 
         setLoading(true);
         setError(null);
@@ -243,16 +349,18 @@ export default function RecuperationColisPage() {
         try {
             const data = await api.validatePickupByDriver(
                 otpCode.trim(),
-                photo ?? undefined
+                photo
             );
             setResult(data);
-            // Reset form
+            // Réinitialisation après succès
             setOtpCode('');
             setPhoto(null);
             setPhotoPreview(null);
+            setLoadedItems([]);
+            setStep(1);
             if (fileInputRef.current) fileInputRef.current.value = '';
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Code invalide ou erreur serveur.';
+            const msg = err instanceof Error ? err.message : 'Erreur de validation ou code incorrect.';
             setError(msg);
         } finally {
             setLoading(false);
@@ -265,6 +373,8 @@ export default function RecuperationColisPage() {
         setOtpCode('');
         setPhoto(null);
         setPhotoPreview(null);
+        setLoadedItems([]);
+        setStep(1);
         if (fileInputRef.current) fileInputRef.current.value = '';
     }, []);
 
@@ -289,12 +399,11 @@ export default function RecuperationColisPage() {
                     <div>
                         <h2 className="text-[20px] font-bold text-[#1E293B]">Récupération de colis</h2>
                         <p className="text-[12px] text-[#94A3B8] mt-0.5">
-                            Saisissez votre code OTP livreur et prenez une photo du colis pour valider la récupération.
+                            Validez la prise en charge des commandes par les livreurs.
                         </p>
                     </div>
                 </div>
 
-                {/* ── Result or Form ── */}
                 {result ? (
                     <div className="space-y-4">
                         <PickupResultCard data={result} />
@@ -309,182 +418,311 @@ export default function RecuperationColisPage() {
                     <div className="space-y-4">
                         {/* ── Form Card ── */}
                         <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
-                            <div className="px-6 py-4 bg-gradient-to-r from-[#F8FAFC] to-white border-b border-[#E2E8F0]">
-                                <p className="text-[13px] font-semibold text-[#1E293B]">
-                                    Validation de récupération
-                                </p>
-                                <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                                    Renseignez les informations demandées pour valider la prise en charge du colis.
-                                </p>
-                            </div>
-
-                            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-
-                                {/* ── OTP Code ── */}
+                            <div className="px-6 py-4 bg-gradient-to-r from-[#F8FAFC] to-white border-b border-[#E2E8F0] flex items-center justify-between">
                                 <div>
-                                    <label className="block text-[13px] font-semibold text-[#1E293B] mb-2">
-                                        <span className="flex items-center gap-2">
-                                            <Hash size={14} className="text-[#22C55E]" />
-                                            Code OTP livreur
-                                            <span className="text-red-500">*</span>
-                                        </span>
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            id="otpInput"
-                                            type="text"
-                                            inputMode="numeric"
-                                            className="w-full px-4 py-4 text-[28px] font-bold tracking-[0.4em] text-center border-2 border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#CBD5E1] placeholder:tracking-normal placeholder:text-[14px] placeholder:font-normal focus:outline-none focus:border-[#22C55E] focus:bg-white transition-all"
-                                            placeholder="ex : 649655"
-                                            value={otpCode}
-                                            onChange={e => {
-                                                setOtpCode(e.target.value.replace(/\D/g, ''));
-                                                setError(null);
-                                            }}
-                                            disabled={loading}
-                                            maxLength={10}
-                                            autoComplete="off"
-                                        />
-                                        {otpCode && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setOtpCode('')}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#E2E8F0] flex items-center justify-center hover:bg-[#CBD5E1] transition-colors"
-                                            >
-                                                <X size={12} className="text-[#64748B]" />
-                                            </button>
-                                        )}
-                                    </div>
-                                    <p className="text-[11px] text-[#94A3B8] mt-1.5 text-center">
-                                        Code numérique unique attribué à votre mission par la plateforme.
+                                    <p className="text-[13px] font-semibold text-[#1E293B]">
+                                        {step === 1 ? 'Étape 1 : Identification du colis' : 'Étape 2 : Validation de la collecte'}
+                                    </p>
+                                    <p className="text-[11px] text-[#94A3B8] mt-0.5">
+                                        {step === 1 
+                                            ? 'Saisissez ou scannez le QR code de récupération du colis.' 
+                                            : 'Vérifiez les médicaments puis prenez obligatoirement une photo/vidéo.'
+                                        }
                                     </p>
                                 </div>
+                                <span className="text-[11px] font-bold bg-[#F0FDF4] text-[#22C55E] px-2 py-0.5 rounded-full">
+                                    Étape {step}/2
+                                </span>
+                            </div>
 
-                                {/* ── Photo Upload ── */}
-                                <div>
-                                    <label className="block text-[13px] font-semibold text-[#1E293B] mb-2">
-                                        <span className="flex items-center gap-2">
-                                            <Camera size={14} className="text-[#22C55E]" />
-                                            Photo du colis
-                                            <span className="text-[11px] text-[#94A3B8] font-normal">(optionnel)</span>
-                                        </span>
-                                    </label>
+                            <div className="p-6 space-y-6">
 
-                                    {photoPreview ? (
-                                        /* Photo preview */
-                                        <div className="relative rounded-xl overflow-hidden border-2 border-[#22C55E]/40 bg-black">
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img
-                                                src={photoPreview}
-                                                alt="Aperçu du colis"
-                                                className="w-full object-contain max-h-52"
-                                            />
-                                            {/* Overlay controls */}
-                                            <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors group flex items-center justify-center gap-3">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => fileInputRef.current?.click()}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-2 bg-white text-[#1E293B] text-[12px] font-semibold rounded-lg shadow"
-                                                >
-                                                    <Camera size={13} />
-                                                    Changer
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handlePhotoChange(null)}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 text-[12px] font-semibold rounded-lg shadow"
-                                                >
-                                                    <X size={13} />
-                                                    Supprimer
-                                                </button>
+                                {/* ── Étape 1 : Saisie / Scan ── */}
+                                {step === 1 && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-[13px] font-semibold text-[#1E293B] mb-2">
+                                                <span className="flex items-center gap-2">
+                                                    <Hash size={14} className="text-[#22C55E]" />
+                                                    Code QR ou OTP livreur
+                                                    <span className="text-red-500">*</span>
+                                                </span>
+                                            </label>
+                                            <div className="relative">
+                                                <textarea
+                                                    id="otpInput"
+                                                    className="w-full px-4 py-3 text-[14px] border-2 border-[#E2E8F0] rounded-xl bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#CBD5E1] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-all font-mono min-h-[80px]"
+                                                    placeholder="Saisissez le code OTP ou collez le contenu du QR Code..."
+                                                    value={otpCode}
+                                                    onChange={e => {
+                                                        setOtpCode(e.target.value);
+                                                        setError(null);
+                                                    }}
+                                                    disabled={loadingItems}
+                                                    autoComplete="off"
+                                                />
+                                                {otpCode && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOtpCode('')}
+                                                        className="absolute right-3 top-3 w-6 h-6 rounded-full bg-[#E2E8F0] flex items-center justify-center hover:bg-[#CBD5E1] transition-colors"
+                                                    >
+                                                        <X size={12} className="text-[#64748B]" />
+                                                    </button>
+                                                )}
                                             </div>
-                                            {/* File info */}
-                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
-                                                <div className="flex items-center gap-2">
-                                                    <Eye size={11} className="text-white/80" />
-                                                    <p className="text-[10px] text-white/80 truncate">{photo?.name}</p>
+                                        </div>
+
+                                        {error && (
+                                            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+                                                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+                                                    <AlertCircle size={16} className="text-red-500" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[13px] font-semibold text-red-700">Erreur</p>
+                                                    <p className="text-[12px] text-red-600 mt-0.5">{error}</p>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        /* Drop zone */
-                                        <div
-                                            onClick={() => fileInputRef.current?.click()}
-                                            onDrop={handleDrop}
-                                            onDragOver={e => e.preventDefault()}
-                                            className="relative flex flex-col items-center justify-center gap-3 p-8 rounded-xl border-2 border-dashed border-[#E2E8F0] bg-[#F8FAFC] cursor-pointer hover:border-[#22C55E]/50 hover:bg-[#F0FDF4]/50 transition-all group"
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            onClick={loadPackageDetails}
+                                            disabled={loadingItems || !otpCode.trim()}
+                                            className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-[#22C55E] to-[#16A34A] text-white text-[14px] font-bold rounded-xl hover:from-[#16A34A] hover:to-[#15803D] transition-all shadow-md shadow-green-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                                         >
-                                            <div className="w-12 h-12 rounded-2xl bg-white border border-[#E2E8F0] group-hover:border-[#22C55E]/30 flex items-center justify-center shadow-sm transition-all">
-                                                <Upload size={20} className="text-[#94A3B8] group-hover:text-[#22C55E] transition-colors" />
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-[13px] font-semibold text-[#1E293B] group-hover:text-[#22C55E] transition-colors">
-                                                    Cliquer ou glisser une photo
-                                                </p>
-                                                <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                                                    JPG, PNG, WEBP — max 10 MB
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        capture="environment"
-                                        className="hidden"
-                                        onChange={handleFileInput}
-                                        disabled={loading}
-                                    />
-                                </div>
-
-                                {/* ── Error ── */}
-                                {error && (
-                                    <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
-                                        <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
-                                            <AlertCircle size={16} className="text-red-500" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[13px] font-semibold text-red-700">Erreur de validation</p>
-                                            <p className="text-[12px] text-red-600 mt-0.5">{error}</p>
-                                        </div>
+                                            {loadingItems ? (
+                                                <>
+                                                    <Loader2 size={18} className="animate-spin" />
+                                                    Chargement du colis...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <PackageSearch size={18} />
+                                                    Vérifier le code et continuer
+                                                </>
+                                            )}
+                                        </button>
                                     </div>
                                 )}
 
-                                {/* ── Submit ── */}
-                                <button
-                                    type="submit"
-                                    disabled={!canSubmit}
-                                    className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-[#22C55E] to-[#16A34A] text-white text-[14px] font-bold rounded-xl hover:from-[#16A34A] hover:to-[#15803D] transition-all shadow-md shadow-green-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
-                                >
-                                    {loading ? (
-                                        <>
-                                            <Loader2 size={18} className="animate-spin" />
-                                            Validation en cours…
-                                        </>
-                                    ) : (
-                                        <>
-                                            <PackageSearch size={18} />
-                                            Valider la récupération
-                                        </>
-                                    )}
-                                </button>
-                            </form>
+                                {/* ── Étape 2 : Médicaments + Photo Obligatoire ── */}
+                                {step === 2 && (
+                                    <form onSubmit={handleSubmit} className="space-y-6">
+                                        
+                                        {/* Code Summary */}
+                                        <div className="flex items-center justify-between p-3.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl">
+                                            <div className="min-w-0">
+                                                <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wide">Code saisi</span>
+                                                <p className="text-[12px] font-mono text-[#1E293B] truncate max-w-sm">{otpCode}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setStep(1);
+                                                    setError(null);
+                                                }}
+                                                className="text-[12px] font-bold text-[#22C55E] hover:underline shrink-0"
+                                            >
+                                                Modifier
+                                            </button>
+                                        </div>
+
+                                        {/* Médicaments à récupérer */}
+                                        <div>
+                                            <label className="block text-[13px] font-semibold text-[#1E293B] mb-3">
+                                                Médicaments à remettre au livreur
+                                            </label>
+                                            
+                                            {loadedItems.length === 0 ? (
+                                                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[12px] flex items-start gap-2.5">
+                                                    <Info size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <p className="font-semibold">Code OTP Détecté</p>
+                                                        <p className="text-amber-700 mt-0.5">
+                                                            Les détails de la commande ne peuvent pas être pré-chargés pour ce type de code. Confirmez la commande physique avec le livreur.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                                                    {loadedItems.map((item, idx) => (
+                                                        <MedicamentCard key={item.id ?? idx} item={item} index={idx} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Capture de la photo (Obligatoire) */}
+                                        <div className="border-t border-[#F1F5F9] pt-5">
+                                            <label className="block text-[13px] font-semibold text-[#1E293B] mb-2">
+                                                <span className="flex items-center gap-2">
+                                                    <Camera size={14} className="text-[#22C55E]" />
+                                                    Prendre en photo / Filmer le colis
+                                                    <span className="text-red-500">* (Obligatoire)</span>
+                                                </span>
+                                            </label>
+
+                                            {photoPreview ? (
+                                                <div className="relative rounded-xl overflow-hidden border-2 border-[#22C55E] bg-black">
+                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                    <img
+                                                        src={photoPreview}
+                                                        alt="Aperçu du colis"
+                                                        className="w-full object-contain max-h-52"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors group flex items-center justify-center gap-3">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => fileInputRef.current?.click()}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-2 bg-white text-[#1E293B] text-[12px] font-semibold rounded-lg shadow"
+                                                        >
+                                                            <Camera size={13} />
+                                                            Prendre une autre photo
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => uploadInputRef.current?.click()}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-2 bg-white text-[#1E293B] text-[12px] font-semibold rounded-lg shadow"
+                                                        >
+                                                            <Upload size={13} />
+                                                            Importer un autre fichier
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePhotoChange(null)}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 text-[12px] font-semibold rounded-lg shadow"
+                                                        >
+                                                            <X size={13} />
+                                                            Supprimer
+                                                        </button>
+                                                    </div>
+                                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
+                                                        <p className="text-[10px] text-white/90 truncate">{photo?.name}</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    {/* Option 1 : Appareil photo */}
+                                                    <div
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                        className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed border-[#E2E8F0] bg-[#F8FAFC] cursor-pointer hover:border-[#22C55E]/50 hover:bg-[#F0FDF4]/50 transition-all group text-center"
+                                                    >
+                                                        <div className="w-10 h-10 rounded-xl bg-white border border-[#E2E8F0] group-hover:border-[#22C55E]/30 flex items-center justify-center shadow-sm transition-all">
+                                                            <Camera size={18} className="text-[#94A3B8] group-hover:text-[#22C55E] transition-colors" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[12px] font-semibold text-[#1E293B] group-hover:text-[#22C55E] transition-colors">
+                                                                Prendre une photo
+                                                            </p>
+                                                            <p className="text-[10px] text-[#94A3B8] mt-0.5">
+                                                                Ouvrir la caméra du téléphone
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Option 2 : Import de fichier */}
+                                                    <div
+                                                        onClick={() => uploadInputRef.current?.click()}
+                                                        onDrop={handleDrop}
+                                                        onDragOver={e => e.preventDefault()}
+                                                        className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed border-[#E2E8F0] bg-[#F8FAFC] cursor-pointer hover:border-[#22C55E]/50 hover:bg-[#F0FDF4]/50 transition-all group text-center"
+                                                    >
+                                                        <div className="w-10 h-10 rounded-xl bg-white border border-[#E2E8F0] group-hover:border-[#22C55E]/30 flex items-center justify-center shadow-sm transition-all">
+                                                            <Upload size={18} className="text-[#94A3B8] group-hover:text-[#22C55E] transition-colors" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[12px] font-semibold text-[#1E293B] group-hover:text-[#22C55E] transition-colors">
+                                                                Importer un fichier
+                                                            </p>
+                                                            <p className="text-[10px] text-[#94A3B8] mt-0.5">
+                                                                PC, Galerie ou glisser-déposer
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*,video/*"
+                                                capture="environment"
+                                                className="hidden"
+                                                onChange={handleFileInput}
+                                                disabled={loading}
+                                            />
+                                            <input
+                                                ref={uploadInputRef}
+                                                type="file"
+                                                accept="image/*,video/*"
+                                                className="hidden"
+                                                onChange={handleFileInput}
+                                                disabled={loading}
+                                            />
+                                        </div>
+
+                                        {error && (
+                                            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+                                                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+                                                    <AlertCircle size={16} className="text-red-500" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[13px] font-semibold text-red-700">Erreur de validation</p>
+                                                    <p className="text-[12px] text-red-600 mt-0.5">{error}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Action buttons */}
+                                        <div className="flex items-center gap-3 pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setStep(1);
+                                                    setError(null);
+                                                }}
+                                                disabled={loading}
+                                                className="flex-1 py-3.5 border border-[#E2E8F0] hover:border-[#1E293B] text-[#94A3B8] hover:text-[#1E293B] text-[13px] font-semibold rounded-xl transition-colors disabled:opacity-40"
+                                            >
+                                                Retour
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={!photo || loading}
+                                                className="flex-[2] flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-[#22C55E] to-[#16A34A] text-white text-[14px] font-bold rounded-xl hover:from-[#16A34A] hover:to-[#15803D] transition-all shadow-md shadow-green-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                                            >
+                                                {loading ? (
+                                                    <>
+                                                        <Loader2 size={18} className="animate-spin" />
+                                                        Validation en cours…
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <CheckCircle2 size={18} />
+                                                        Valider la récupération
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
+                            </div>
                         </div>
 
                         {/* ── Instructions card ── */}
                         <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-5">
                             <p className="text-[13px] font-semibold text-[#1E293B] mb-4 flex items-center gap-2">
                                 <Info size={15} className="text-[#22C55E]" />
-                                Comment ça marche ?
+                                Instructions de récupération
                             </p>
                             <ol className="space-y-3">
                                 {[
-                                    'Récupérez votre code OTP depuis votre espace de mission.',
-                                    'Prenez une photo du colis remis par le pharmacien (recommandé).',
-                                    'Saisissez le code et joignez la photo, puis validez.',
-                                    "La liste des médicaments à livrer s'affiche et la mission passe en transit.",
+                                    'Scannez le QR Code de retrait ou saisissez le code OTP fourni par le livreur.',
+                                    'Vérifiez la liste des médicaments affichés à l&apos;écran avec le contenu du colis physique.',
+                                    'Prenez une photo ou filmez le colis de façon visible (étape obligatoire pour valider la prise en charge).',
+                                    'Validez la récupération pour changer le statut de la livraison en transit.',
                                 ].map((step, i) => (
                                     <li key={i} className="flex items-start gap-3">
                                         <span className="w-6 h-6 rounded-full bg-gradient-to-br from-[#22C55E] to-[#16A34A] text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-sm">

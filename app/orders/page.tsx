@@ -13,6 +13,7 @@ import {
   Eye,
   QrCode,
   Truck,
+  FileImage,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { OrderUI } from "@/lib/types";
@@ -91,6 +92,8 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  // Track which orders have a prescription
+  const [prescriptionOrders, setPrescriptionOrders] = useState<Set<string>>(new Set());
 
   // Pharmacy ID — needed for the per-status endpoint
   const [officineId, setOfficineId] = useState("");
@@ -135,7 +138,6 @@ export default function OrdersPage() {
         const itemsResult = itemsResults[idx];
         if (itemsResult.status === "fulfilled") {
           const itemsData = itemsResult.value;
-          // Normalize: l'endpoint peut retourner un tableau direct ou { items: [...] }
           const itemsArray: Record<string, unknown>[] = Array.isArray(itemsData)
             ? (itemsData as Record<string, unknown>[])
             : Array.isArray((itemsData as { items?: unknown[] })?.items)
@@ -167,6 +169,11 @@ export default function OrdersPage() {
         const rawStatus = item.status ?? item.order?.status ?? "PENDING";
         const normalizedStatus = String(rawStatus).toUpperCase();
 
+        // Detect prescription: check inner order.prescription field
+        const itemAsUnknown = item as unknown as Record<string, unknown>;
+        const innerOrder = itemAsUnknown.order as Record<string, unknown> | undefined;
+        const hasPrescription = !!((innerOrder?.prescription) || itemAsUnknown.prescription);
+
         return {
           id: item.id,
           patient: patientName,
@@ -175,15 +182,29 @@ export default function OrdersPage() {
           payment: String(item.payment_status ?? item.order?.payment_status ?? "UNPAID").toUpperCase(),
           status: normalizedStatus,
           _rawDate: item.created_at ?? item.order?.created_at ?? "",
-        } as OrderUI & { _rawDate: string };
+          _hasPrescription: hasPrescription,
+        } as OrderUI & { _rawDate: string; _hasPrescription: boolean };
       });
 
       // Trier du plus récent au plus ancien
       (mapped as (OrderUI & { _rawDate: string })[]).sort(
         (a, b) => new Date(b._rawDate).getTime() - new Date(a._rawDate).getTime()
       );
-      // Nettoyer le champ temporaire
-      mapped.forEach((o) => { delete (o as unknown as Record<string, unknown>)._rawDate; });
+
+      // Collect prescription order IDs
+      const prescriptionSet = new Set<string>();
+      mapped.forEach((o) => {
+        if ((o as unknown as { _hasPrescription: boolean })._hasPrescription) {
+          prescriptionSet.add(o.id);
+        }
+      });
+      setPrescriptionOrders(prescriptionSet);
+
+      // Nettoyer les champs temporaires
+      mapped.forEach((o) => {
+        delete (o as unknown as Record<string, unknown>)._rawDate;
+        delete (o as unknown as Record<string, unknown>)._hasPrescription;
+      });
 
       setOrders(mapped);
       setLastRefresh(new Date());
@@ -412,6 +433,12 @@ export default function OrdersPage() {
                                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-500"></span>
                               </span>
                               À traiter
+                            </span>
+                          )}
+                          {prescriptionOrders.has(order.id) && (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 uppercase tracking-widest border border-blue-200">
+                              <FileImage size={9} />
+                              Ordonnance
                             </span>
                           )}
                         </div>

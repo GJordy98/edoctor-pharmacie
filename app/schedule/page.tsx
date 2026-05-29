@@ -27,6 +27,7 @@ const DEFAULT_SCHEDULE: ScheduleDayPayload[] = DAYS.map(d => ({
 
 export default function SchedulePage() {
     const [schedule, setSchedule] = useState<ScheduleDayPayload[]>(DEFAULT_SCHEDULE);
+    const [savedSchedule, setSavedSchedule] = useState<ScheduleDayPayload[]>(DEFAULT_SCHEDULE);
     const [loading, setLoading]   = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage]   = useState<{ text: string; ok: boolean } | null>(null);
@@ -60,6 +61,9 @@ export default function SchedulePage() {
                         return found ?? DEFAULT_SCHEDULE.find(s => s.day === d.key)!;
                     });
                     setSchedule(merged);
+                    setSavedSchedule(merged);
+                } else {
+                    setSavedSchedule(DEFAULT_SCHEDULE);
                 }
             })
             .catch(() => { /* No schedule yet — keep defaults */ })
@@ -83,6 +87,7 @@ export default function SchedulePage() {
         setMessage(null);
         try {
             await api.updateSchedule(officineId, { schedules: schedule });
+            setSavedSchedule(schedule);
             setMessage({ text: 'Horaires enregistrés avec succès.', ok: true });
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Erreur lors de la sauvegarde.';
@@ -131,6 +136,37 @@ export default function SchedulePage() {
                             : <XCircle size={16} className="shrink-0" />
                         }
                         {message.text}
+                    </div>
+                )}
+
+                {/* Aperçu des horaires actifs */}
+                {!loading && savedSchedule.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm mb-6">
+                        <h2 className="text-[14px] font-bold text-[#1E293B] mb-3 flex items-center gap-1.5">
+                            <Clock size={16} className="text-[#22C55E]" />
+                            Horaires actuellement actifs
+                        </h2>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                            {savedSchedule.map((s, idx) => {
+                                const dayLabel = DAYS.find(d => d.key === s.day)?.label ?? s.day;
+                                const shortDay = dayLabel.slice(0, 3) + '.';
+                                return (
+                                    <div key={idx} className={`p-2.5 rounded-xl border text-center transition-all ${
+                                        s.is_guard 
+                                            ? 'bg-amber-50 border-amber-200 text-amber-800' 
+                                            : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B]'
+                                    }`}>
+                                        <p className="text-[11px] font-bold text-[#1E293B]">{shortDay}</p>
+                                        <p className="text-[10px] mt-0.5 font-medium">{s.open_time} - {s.close_time}</p>
+                                        {s.is_guard && (
+                                            <span className="inline-block text-[8px] font-extrabold bg-amber-200 text-amber-900 px-1 py-0.5 rounded mt-1 uppercase tracking-wide">
+                                                Garde
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
 
