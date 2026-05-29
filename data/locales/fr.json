@@ -10,7 +10,13 @@
     "success": "Succès",
     "actions": "Actions",
     "edit": "Modifier",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "cancel": "Annuler",
+    "image": "Image",
+    "refresh": "Actualiser",
+    "add": "Ajouter",
+    "optional": "optionnel",
+    "field_required": "Ce champ est obligatoire"
   },
   "sidebar": {
     "main": "Principal",
@@ -62,7 +68,17 @@
     "loading_products": "Chargement des produits...",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce produit ?",
     "delete_success": "Produit supprimé avec succès !",
-    "delete_error": "Erreur lors de la suppression : {error}"
+    "delete_error": "Erreur lors de la suppression : {error}",
+    "search_placeholder": "Rechercher un médicament par nom, DCI…",
+    "catalogue": "Catalogue",
+    "search_results": "{count} résultat(s) pour « {query} »",
+    "table_quantity": "Quantité",
+    "add_first_product": "Ajouter le premier médicament",
+    "footer_count": "{count} médicament(s) au total",
+    "footer_count_found": "{count} médicament(s) trouvé(s)",
+    "confirm_delete_title": "Confirmer la suppression",
+    "delete_irreversible": "Cette action est irréversible.",
+    "delete_error_unexpected": "Erreur inattendue lors de la suppression."
   },
   "orders": {
     "title": "Tableau de Bord des Commandes",
@@ -185,7 +201,16 @@
     "notes": "Notes / Remarques",
     "placeholder_notes": "Informations complémentaires...",
     "saving_in_progress": "Création en cours...",
-    "create_product_btn": "Créer le Produit"
+    "create_product_btn": "Créer le Produit",
+    "card_title": "Nouveau médicament",
+    "card_subtitle": "Remplissez les informations du produit. Les champs marqués * sont obligatoires.",
+    "image_title": "Image du produit",
+    "image_hint": "Format recommandé: PNG, JPG ou WebP. Max 2Mo.",
+    "section_general": "Informations générales",
+    "section_units_price": "Unités & Prix",
+    "multiplier": "Multiplicateur",
+    "multiplier_desc": "Unités de base dans 1 unité de vente",
+    "existing_products": "Produits existants — cliquez pour pré-remplir"
   },
   "profile": {
     "errors": {
@@ -517,5 +542,34 @@
     "pay_om_desc": "Orange Money",
     "pay_cash": "Espèces",
     "pay_cash_desc": "Paiement à la collecte"
+  },
+  "product_history": {
+    "title": "Historique des produits",
+    "last_update": "Dernière mise à jour : {time}",
+    "refresh": "Actualiser",
+    "filter_all": "Tous",
+    "filter_pending": "En attente",
+    "filter_reserved": "Réservés",
+    "filter_picked": "Collectés",
+    "filter_cancelled": "Annulés",
+    "filter_completed": "Terminés",
+    "search_placeholder": "Rechercher un produit, DCI…",
+    "filter_status_all": "Tous les statuts",
+    "table_product": "Produit",
+    "table_dci": "DCI / CDI",
+    "table_qty": "Qté",
+    "table_unit_price": "Prix unit.",
+    "table_total": "Total",
+    "table_status": "Statut",
+    "table_date": "Date",
+    "no_history": "Aucun produit dans l'historique",
+    "no_results": "Aucun résultat",
+    "no_history_desc": "Les produits traités apparaîtront ici automatiquement.",
+    "footer_count_singular": "{count} produit",
+    "footer_count_plural": "{count} produits",
+    "footer_filtered": " filtré",
+    "footer_filtered_plural": " filtrés",
+    "footer_total": " au total",
+    "footer_page_info": "page {page} sur {total}"
   }
 }

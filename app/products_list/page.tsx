@@ -18,6 +18,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { showToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api-client";
 import type { Product } from "@/lib/types";
+import { useLanguage } from "@/context/LanguageContext";
 
 /* ── skeleton ── */
 function SkeletonRow() {
@@ -33,6 +34,7 @@ function SkeletonRow() {
 }
 
 export default function ProductsPage() {
+  const { t } = useLanguage();
   const { products, loading, error, deleteProduct } = useProducts();
 
   // ── Server-side search ──
@@ -92,12 +94,12 @@ export default function ProductsPage() {
     try {
       const result = await deleteProduct(productToDelete.id);
       if (result.success) {
-        showToast("Produit supprimé avec succès !", "success");
+        showToast(t("products.delete_success"), "success");
       } else {
-        showToast("Erreur : " + result.error, "error");
+        showToast(t("products.delete_error", { error: result.error || "" }), "error");
       }
     } catch {
-      showToast("Erreur inattendue lors de la suppression.", "error");
+      showToast(t("products.delete_error_unexpected"), "error");
     } finally {
       setDeleting(false);
       closeDeleteModal();
@@ -106,18 +108,18 @@ export default function ProductsPage() {
 
 
   return (
-    <DashboardLayout title="Médicaments">
+    <DashboardLayout title={t("products.title")}>
       <div className="space-y-5 animate-fade-in-up">
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-[18px] font-semibold text-[#1E293B]">Liste des médicaments</h2>
+          <h2 className="text-[18px] font-semibold text-[#1E293B]">{t("products.list_title")}</h2>
           <Link
             href="/add-product"
             className="flex items-center gap-2 px-4 py-2.5 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[13px] font-semibold rounded-xl transition-colors"
           >
             <Plus size={15} />
-            Ajouter un médicament
+            {t("products.add_product")}
           </Link>
         </div>
 
@@ -134,7 +136,7 @@ export default function ProductsPage() {
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
           <input
             type="text"
-            placeholder="Rechercher un médicament par nom, DCI…"
+            placeholder={t("products.search_placeholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-10 py-2.5 text-[13px] border border-[#E2E8F0] rounded-xl bg-white text-[#1E293B] focus:outline-none focus:border-[#22C55E] transition-colors"
@@ -156,10 +158,10 @@ export default function ProductsPage() {
         {/* ── Table ── */}
         <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-            <h3 className="text-[14px] font-semibold text-[#1E293B]">Catalogue</h3>
+            <h3 className="text-[14px] font-semibold text-[#1E293B]">{t("products.catalogue")}</h3>
             {searchResults !== null && (
               <span className="text-[11px] text-[#94A3B8]">
-                {searchResults.length} résultat{searchResults.length !== 1 ? 's' : ''} pour « {searchQuery} »
+                {t("products.search_results", { count: searchResults.length, query: searchQuery })}
               </span>
             )}
           </div>
@@ -172,25 +174,25 @@ export default function ProductsPage() {
                     #
                   </th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide w-12">
-                    Image
+                    {t("common.image")}
                   </th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Produit
+                    {t("products.table_name")}
                   </th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Forme galénique
+                    {t("products.table_galenic")}
                   </th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Quantité
+                    {t("products.table_quantity")}
                   </th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Prix de vente
+                    {t("products.table_price")}
                   </th>
                   <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Devise
+                    {t("products.table_currency")}
                   </th>
                   <th className="text-right px-4 py-3 text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-                    Actions
+                    {t("common.actions")}
                   </th>
                 </tr>
               </thead>
@@ -201,13 +203,13 @@ export default function ProductsPage() {
                   <tr>
                     <td colSpan={8} className="text-center py-16">
                       <Package size={32} className="text-[#E2E8F0] mx-auto mb-3" />
-                      <p className="text-[14px] font-medium text-[#94A3B8]">Aucun médicament</p>
+                      <p className="text-[14px] font-medium text-[#94A3B8]">{t("products.no_products")}</p>
                       <Link
                         href="/add-product"
                         className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 text-[12px] font-semibold bg-[#22C55E] text-white rounded-xl hover:bg-[#16A34A] transition-colors"
                       >
                         <Plus size={13} />
-                        Ajouter le premier médicament
+                        {t("products.add_first_product")}
                       </Link>
                     </td>
                   </tr>
@@ -285,7 +287,7 @@ export default function ProductsPage() {
 
           {(!loading || searchResults !== null) && displayedProducts.length > 0 && (
             <div className="px-4 py-3 border-t border-[#E2E8F0] text-[12px] text-[#94A3B8]">
-              {displayedProducts.length} médicament{displayedProducts.length > 1 ? "s" : ""} {searchResults !== null ? 'trouvés' : 'au total'}
+              {t(searchResults !== null ? "products.footer_count_found" : "products.footer_count", { count: displayedProducts.length })}
             </div>
           )}
         </div>
@@ -304,7 +306,7 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[15px] font-semibold text-[#1E293B] flex items-center gap-2">
                 <AlertCircle size={16} className="text-red-500" />
-                Confirmer la suppression
+                {t("products.confirm_delete_title")}
               </h3>
               <button
                 onClick={closeDeleteModal}
@@ -316,14 +318,14 @@ export default function ProductsPage() {
             </div>
 
             <p className="text-[13px] text-[#64748B] mb-2">
-              Êtes-vous sûr de vouloir supprimer ce produit ?
+              {t("products.delete_confirm")}
             </p>
             {productToDelete && (
               <p className="text-[14px] font-semibold text-red-500 mb-2">
                 « {productToDelete.name} »
               </p>
             )}
-            <p className="text-[12px] text-[#94A3B8] mb-6">Cette action est irréversible.</p>
+            <p className="text-[12px] text-[#94A3B8] mb-6">{t("products.delete_irreversible")}</p>
 
             <div className="flex items-center gap-2">
               <button
@@ -331,7 +333,7 @@ export default function ProductsPage() {
                 disabled={deleting}
                 className="flex-1 py-2.5 text-[13px] font-medium border border-[#E2E8F0] text-[#94A3B8] rounded-xl hover:text-[#1E293B] hover:border-[#1E293B] transition-colors disabled:opacity-50"
               >
-                Annuler
+                {t("common.cancel")}
               </button>
               <button
                 onClick={confirmDelete}
@@ -339,9 +341,9 @@ export default function ProductsPage() {
                 className="flex-1 py-2.5 text-[13px] font-semibold bg-[#EF4444] text-white rounded-xl hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {deleting ? (
-                  <><Loader2 size={14} className="animate-spin" />Suppression…</>
+                  <><Loader2 size={14} className="animate-spin" />{t("products.deleting")}</>
                 ) : (
-                  <><Trash2 size={14} />Supprimer</>
+                  <><Trash2 size={14} />{t("common.delete")}</>
                 )}
               </button>
             </div>

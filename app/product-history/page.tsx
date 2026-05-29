@@ -17,6 +17,7 @@ import { api } from "@/lib/api-client";
 import { OfficineProductHistory } from "@/lib/types";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { useLanguage } from "@/context/LanguageContext";
 
 const PAGE_SIZE = 15;
 
@@ -27,9 +28,9 @@ function fmt(raw: string | number | undefined): string {
   return isNaN(n) ? "0 XAF" : `${Math.round(n).toLocaleString("fr-FR")} XAF`;
 }
 
-function fmtDate(raw: string | undefined): string {
+function fmtDate(raw: string | undefined, lang = "fr-FR"): string {
   if (!raw) return "—";
-  return new Date(raw).toLocaleDateString("fr-FR", {
+  return new Date(raw).toLocaleDateString(lang, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -84,6 +85,7 @@ function StatCard({ label, count, icon: Icon, color, active, onClick }: StatCard
 
 /* ── main page ── */
 export default function ProductHistoryPage() {
+  const { t, language } = useLanguage();
   const [items, setItems] = useState<OfficineProductHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -123,12 +125,12 @@ export default function ProductHistoryPage() {
 
   /* ── stat cards ── */
   const stats = [
-    { key: "all",       label: "Tous",       count: items.length,                                              icon: History,      color: "bg-[#F0FDF4] text-[#22C55E]" },
-    { key: "PENDING",   label: "En attente", count: items.filter((i) => i.status === "PENDING").length,   icon: Clock,        color: "bg-orange-50 text-orange-500" },
-    { key: "RESERVED",  label: "Réservés",   count: items.filter((i) => i.status === "RESERVED").length,  icon: Package,      color: "bg-blue-50 text-blue-600" },
-    { key: "PICKED",    label: "Collectés",  count: items.filter((i) => i.status === "PICKED").length,    icon: PackageCheck, color: "bg-indigo-50 text-indigo-600" },
-    { key: "CANCELLED", label: "Annulés",    count: items.filter((i) => i.status === "CANCELLED").length, icon: XCircle,      color: "bg-red-50 text-red-500" },
-    { key: "COMPLETED", label: "Terminés",   count: items.filter((i) => i.status === "COMPLETED").length, icon: CheckCircle2, color: "bg-teal-50 text-teal-600" },
+    { key: "all",       label: t("product_history.filter_all"),       count: items.length,                                              icon: History,      color: "bg-[#F0FDF4] text-[#22C55E]" },
+    { key: "PENDING",   label: t("product_history.filter_pending"),   count: items.filter((i) => i.status === "PENDING").length,   icon: Clock,        color: "bg-orange-50 text-orange-500" },
+    { key: "RESERVED",  label: t("product_history.filter_reserved"),  count: items.filter((i) => i.status === "RESERVED").length,  icon: Package,      color: "bg-blue-50 text-blue-600" },
+    { key: "PICKED",    label: t("product_history.filter_picked"),    count: items.filter((i) => i.status === "PICKED").length,    icon: PackageCheck, color: "bg-indigo-50 text-indigo-600" },
+    { key: "CANCELLED", label: t("product_history.filter_cancelled"), count: items.filter((i) => i.status === "CANCELLED").length, icon: XCircle,      color: "bg-red-50 text-red-500" },
+    { key: "COMPLETED", label: t("product_history.filter_completed"), count: items.filter((i) => i.status === "COMPLETED").length, icon: CheckCircle2, color: "bg-teal-50 text-teal-600" },
   ];
 
   /* ── filtrage ── */
@@ -157,16 +159,16 @@ export default function ProductHistoryPage() {
     }, []);
 
   return (
-    <DashboardLayout title="Historique produits">
+    <DashboardLayout title={t("product_history.title")}>
       <div className="space-y-5 animate-fade-in-up">
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-[18px] font-semibold text-[#1E293B]">Historique des produits</h2>
+            <h2 className="text-[18px] font-semibold text-[#1E293B]">{t("product_history.title")}</h2>
             {lastRefresh && (
               <p className="text-[12px] text-[#94A3B8] mt-0.5">
-                Dernière mise à jour : {lastRefresh.toLocaleTimeString("fr-FR")}
+                {t("product_history.last_update", { time: lastRefresh.toLocaleTimeString(language === "fr" ? "fr-FR" : "en-US") })}
               </p>
             )}
           </div>
@@ -176,7 +178,7 @@ export default function ProductHistoryPage() {
             className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[#22C55E] border border-[#22C55E] rounded-xl hover:bg-[#F0FDF4] transition-colors disabled:opacity-50"
           >
             <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
-            Actualiser
+            {t("product_history.refresh")}
           </button>
         </div>
 
@@ -204,7 +206,7 @@ export default function ProductHistoryPage() {
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
               <input
                 type="text"
-                placeholder="Rechercher un produit, DCI…"
+                placeholder={t("product_history.search_placeholder")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#22C55E] focus:bg-white transition-colors"
@@ -215,12 +217,12 @@ export default function ProductHistoryPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 text-[13px] border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#1E293B] focus:outline-none focus:border-[#22C55E] cursor-pointer"
             >
-              <option value="all">Tous les statuts</option>
-              <option value="PENDING">En attente</option>
-              <option value="RESERVED">Réservé</option>
-              <option value="PICKED">Collecté</option>
-              <option value="CANCELLED">Annulé</option>
-              <option value="COMPLETED">Terminé</option>
+              <option value="all">{t("product_history.filter_status_all")}</option>
+              <option value="PENDING">{t("product_history.filter_pending")}</option>
+              <option value="RESERVED">{t("product_history.filter_reserved")}</option>
+              <option value="PICKED">{t("product_history.filter_picked")}</option>
+              <option value="CANCELLED">{t("product_history.filter_cancelled")}</option>
+              <option value="COMPLETED">{t("product_history.filter_completed")}</option>
             </select>
           </div>
 
@@ -229,13 +231,13 @@ export default function ProductHistoryPage() {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Produit</th>
-                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">DCI / CDI</th>
-                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Qté</th>
-                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Prix unit.</th>
-                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Total</th>
-                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Statut</th>
-                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">Date</th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">{t("product_history.table_product")}</th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">{t("product_history.table_dci")}</th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">{t("product_history.table_qty")}</th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">{t("product_history.table_unit_price")}</th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">{t("product_history.table_total")}</th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">{t("product_history.table_status")}</th>
+                  <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#94A3B8] uppercase tracking-wide">{t("product_history.table_date")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9]">
@@ -246,11 +248,11 @@ export default function ProductHistoryPage() {
                     <td colSpan={7} className="text-center py-16">
                       <History size={32} className="text-[#E2E8F0] mx-auto mb-3" />
                       <p className="text-[14px] font-medium text-[#94A3B8]">
-                        {items.length === 0 ? "Aucun produit dans l'historique" : "Aucun résultat"}
+                        {items.length === 0 ? t("product_history.no_history") : t("product_history.no_results")}
                       </p>
                       {items.length === 0 && (
                         <p className="text-[12px] text-[#94A3B8] mt-1">
-                          Les produits traités apparaîtront ici automatiquement.
+                          {t("product_history.no_history_desc")}
                         </p>
                       )}
                     </td>
@@ -274,7 +276,7 @@ export default function ProductHistoryPage() {
                       <td className="px-4 py-3.5 text-[#64748B]">{fmt(item.unit_price)}</td>
                       <td className="px-4 py-3.5 font-semibold text-[#1E293B]">{fmt(item.line_total)}</td>
                       <td className="px-4 py-3.5"><StatusBadge status={item.status} /></td>
-                      <td className="px-4 py-3.5 text-[#64748B]">{fmtDate(item.created_at)}</td>
+                      <td className="px-4 py-3.5 text-[#64748B]">{fmtDate(item.created_at, language === "fr" ? "fr-FR" : "en-US")}</td>
                     </tr>
                   ))
                 )}
@@ -287,12 +289,10 @@ export default function ProductHistoryPage() {
             <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between gap-4 flex-wrap">
               {/* Info */}
               <p className="text-[12px] text-[#94A3B8]">
-                {filtered.length} produit{filtered.length > 1 ? "s" : ""}
-                {statusFilter !== "all" || searchTerm ? " filtré" + (filtered.length > 1 ? "s" : "") : " au total"}
-                {" — "}page{" "}
-                <span className="font-semibold text-[#1E293B]">{safePage}</span>
-                {" "}sur{" "}
-                <span className="font-semibold text-[#1E293B]">{totalPages}</span>
+                {filtered.length > 1 ? t("product_history.footer_count_plural", { count: filtered.length }) : t("product_history.footer_count_singular", { count: filtered.length })}
+                {statusFilter !== "all" || searchTerm ? (filtered.length > 1 ? t("product_history.footer_filtered_plural") : t("product_history.footer_filtered")) : t("product_history.footer_total")}
+                {" — "}
+                {t("product_history.footer_page_info", { page: safePage, total: totalPages })}
               </p>
 
               {/* Pagination controls */}

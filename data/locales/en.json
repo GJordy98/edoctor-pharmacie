@@ -10,7 +10,13 @@
     "success": "Success",
     "actions": "Actions",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "image": "Image",
+    "refresh": "Refresh",
+    "add": "Add",
+    "optional": "optional",
+    "field_required": "This field is required"
   },
   "sidebar": {
     "main": "Main",
@@ -62,7 +68,17 @@
     "loading_products": "Loading products...",
     "delete_confirm": "Are you sure you want to delete this product ?",
     "delete_success": "Product deleted successfully !",
-    "delete_error": "Error during deletion: {error}"
+    "delete_error": "Error during deletion: {error}",
+    "search_placeholder": "Search a medication by name, INN (DCI)...",
+    "catalogue": "Catalog",
+    "search_results": "{count} result(s) for \"{query}\"",
+    "table_quantity": "Quantity",
+    "add_first_product": "Add the first product",
+    "footer_count": "{count} medication(s) in total",
+    "footer_count_found": "{count} medication(s) found",
+    "confirm_delete_title": "Confirm deletion",
+    "delete_irreversible": "This action is irreversible.",
+    "delete_error_unexpected": "Unexpected error during deletion."
   },
   "orders": {
     "title": "Orders Dashboard",
@@ -185,7 +201,16 @@
     "notes": "Notes / Remarks",
     "placeholder_notes": "Additional information...",
     "saving_in_progress": "Creating...",
-    "create_product_btn": "Create Product"
+    "create_product_btn": "Create Product",
+    "card_title": "New medication",
+    "card_subtitle": "Fill in the product information. Fields marked with * are required.",
+    "image_title": "Product image",
+    "image_hint": "Recommended format: PNG, JPG or WebP. Max 2MB.",
+    "section_general": "General information",
+    "section_units_price": "Units & Price",
+    "multiplier": "Multiplier",
+    "multiplier_desc": "Base units in 1 sales unit",
+    "existing_products": "Existing products — click to pre-fill"
   },
   "profile": {
     "errors": {
@@ -517,5 +542,34 @@
     "pay_om_desc": "Orange Money",
     "pay_cash": "Cash",
     "pay_cash_desc": "Payment on pickup"
+  },
+  "product_history": {
+    "title": "Product History",
+    "last_update": "Last update: {time}",
+    "refresh": "Refresh",
+    "filter_all": "All",
+    "filter_pending": "Pending",
+    "filter_reserved": "Reserved",
+    "filter_picked": "Collected",
+    "filter_cancelled": "Cancelled",
+    "filter_completed": "Completed",
+    "search_placeholder": "Search product, INN (DCI)...",
+    "filter_status_all": "All statuses",
+    "table_product": "Product",
+    "table_dci": "INN / CDI",
+    "table_qty": "Qty",
+    "table_unit_price": "Unit price",
+    "table_total": "Total",
+    "table_status": "Status",
+    "table_date": "Date",
+    "no_history": "No product in history",
+    "no_results": "No results",
+    "no_history_desc": "Processed products will appear here automatically.",
+    "footer_count_singular": "{count} product",
+    "footer_count_plural": "{count} products",
+    "footer_filtered": " filtered",
+    "footer_filtered_plural": " filtered",
+    "footer_total": " in total",
+    "footer_page_info": "page {page} of {total}"
   }
 }

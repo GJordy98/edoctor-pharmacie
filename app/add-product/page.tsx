@@ -20,6 +20,7 @@ import { api } from "@/lib/api-client";
 import { Category, Galenic, Unit, Product } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import { useLanguage } from "@/context/LanguageContext";
 
 /* ── types ── */
 interface GlobalProduct {
@@ -65,6 +66,7 @@ function FormField({
   children: React.ReactNode;
   error?: boolean;
 }) {
+  const { t } = useLanguage();
   return (
     <div>
       <label className="block text-[13px] font-medium text-[#1E293B] mb-1.5">
@@ -78,7 +80,7 @@ function FormField({
       {error && (
         <p className="mt-1 text-[11px] text-red-500 flex items-center gap-1">
           <AlertCircle size={11} />
-          Ce champ est obligatoire
+          {t("common.field_required")}
         </p>
       )}
     </div>
@@ -112,6 +114,7 @@ function AutocompleteInput({
   placeholder?: string;
   error?: boolean;
 }) {
+  const { t } = useLanguage();
   return (
     <div ref={containerRef} className="relative">
       <input
@@ -128,7 +131,7 @@ function AutocompleteInput({
           <div className="flex items-center gap-1.5 px-3 py-2 bg-[#F8FAFC] border-b border-[#E2E8F0]">
             <Database size={11} className="text-[#94A3B8]" />
             <span className="text-[10px] font-semibold text-[#94A3B8] uppercase tracking-wide">
-              Produits existants — cliquez pour pré-remplir
+              {t("add_product.existing_products")}
             </span>
           </div>
           {suggestions.map((p) => (
@@ -167,6 +170,7 @@ function AutocompleteInput({
 /* ── main component ── */
 export default function AddProductPage() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [galenics, setGalenics] = useState<Galenic[]>([]);
@@ -238,7 +242,7 @@ export default function AddProductPage() {
         setUnits(safeArr(uns) as Unit[]);
         setAllProducts(safeArr(prods) as GlobalProduct[]);
       } catch {
-        setMessage({ text: "Erreur lors du chargement des données de référence.", ok: false });
+        setMessage({ text: t("add_product.loading_refs_error"), ok: false });
       } finally {
         setLoadingRefs(false);
       }
@@ -315,7 +319,7 @@ export default function AddProductPage() {
     if (!formData.unit_purchase) newErrors.push("unit_purchase");
     if (newErrors.length > 0) {
       setErrors(newErrors);
-      setMessage({ text: "Veuillez remplir tous les champs obligatoires (*).", ok: false });
+      setMessage({ text: t("add_product.validation_general_error"), ok: false });
       return;
     }
 
@@ -328,7 +332,7 @@ export default function AddProductPage() {
       } catch {}
     }
     if (!pharmacyId) {
-      setMessage({ text: "ID de pharmacie non trouvé. Veuillez vous reconnecter.", ok: false });
+      setMessage({ text: t("add_product.error_no_pharmacy"), ok: false });
       return;
     }
 
@@ -386,11 +390,11 @@ export default function AddProductPage() {
         });
       }
 
-      setMessage({ text: "Produit créé avec succès !", ok: true });
+      setMessage({ text: t("add_product.save_success"), ok: true });
       setTimeout(() => router.push("/products_list"), 1500);
     } catch (err: unknown) {
       setMessage({
-        text: err instanceof Error ? err.message : "Une erreur est survenue lors de la création.",
+        text: err instanceof Error ? err.message : t("add_product.save_error"),
         ok: false,
       });
     } finally {
@@ -404,24 +408,24 @@ export default function AddProductPage() {
   const galenicLabel = (id: string) => galenics.find((g) => g.id === id)?.name || "";
 
   return (
-    <DashboardLayout title="Ajouter un médicament">
+    <DashboardLayout title={t("add_product.title")}>
       <div className="animate-fade-in-up">
 
         {/* ── breadcrumb ── */}
         <div className="flex items-center gap-1.5 text-[12px] text-[#94A3B8] mb-5">
           <Link href="/products_list" className="hover:text-[#22C55E] transition-colors">
-            Médicaments
+            {t("products.title")}
           </Link>
           <ChevronRight size={12} />
-          <span className="text-[#1E293B]">Ajouter</span>
+          <span className="text-[#1E293B]">{t("common.add")}</span>
         </div>
 
         <div className="max-w-2xl mx-auto">
           <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-[#E2E8F0]">
-              <h2 className="text-[16px] font-semibold text-[#1E293B]">Nouveau médicament</h2>
+              <h2 className="text-[16px] font-semibold text-[#1E293B]">{t("add_product.card_title")}</h2>
               <p className="text-[12px] text-[#94A3B8] mt-0.5">
-                Remplissez les informations du produit. Les champs marqués * sont obligatoires.
+                {t("add_product.card_subtitle")}
               </p>
             </div>
 
@@ -443,14 +447,14 @@ export default function AddProductPage() {
               {loadingRefs ? (
                 <div className="flex flex-col items-center py-12 gap-3">
                   <Loader2 size={28} className="animate-spin text-[#22C55E]" />
-                  <p className="text-[13px] text-[#94A3B8]">Chargement des données…</p>
+                  <p className="text-[13px] text-[#94A3B8]">{t("common.loading")}</p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
 
                   {/* ── Image section ── */}
                   <div>
-                    <SectionTitle icon={ImagePlus} label="Image du produit" />
+                    <SectionTitle icon={ImagePlus} label={t("add_product.image_title")} />
                     <div className="flex items-center gap-4">
                       <div
                         className="w-20 h-20 rounded-xl border-2 border-dashed border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#22C55E] hover:bg-[#F0FDF4] transition-colors shrink-0"
@@ -472,7 +476,7 @@ export default function AddProductPage() {
                           className={inputCls()}
                         />
                         <p className="text-[11px] text-[#94A3B8] mt-1">
-                          Format recommandé: PNG, JPG ou WebP. Max 2Mo.
+                          {t("add_product.image_hint")}
                         </p>
                       </div>
                     </div>
@@ -480,11 +484,11 @@ export default function AddProductPage() {
 
                   {/* ── Informations générales ── */}
                   <div>
-                    <SectionTitle icon={Pill} label="Informations générales" />
+                    <SectionTitle icon={Pill} label={t("add_product.section_general")} />
                     <div className="space-y-4">
 
                       {/* Name */}
-                      <FormField label="Nom du produit" required error={errors.includes("name")}>
+                      <FormField label={t("add_product.product_name").replace(" *", "")} required error={errors.includes("name")}>
                         <AutocompleteInput
                           value={formData.name}
                           onChange={handleNameChange}
@@ -493,14 +497,14 @@ export default function AddProductPage() {
                           showDropdown={showNameDropdown}
                           onSelect={fillFromProduct}
                           containerRef={nameRef}
-                          placeholder="Ex: Paracetamol — commencez à taper pour voir des suggestions"
+                          placeholder={t("add_product.placeholder_name")}
                           error={errors.includes("name")}
                         />
                       </FormField>
 
                       <div className="grid grid-cols-2 gap-4">
                         {/* DCI */}
-                        <FormField label="DCI">
+                        <FormField label={t("add_product.dci")}>
                           <AutocompleteInput
                             value={formData.dci}
                             onChange={handleDciChange}
@@ -509,18 +513,18 @@ export default function AddProductPage() {
                             showDropdown={showDciDropdown}
                             onSelect={fillFromProduct}
                             containerRef={dciRef}
-                            placeholder="Ex: Paracetamol"
+                            placeholder={t("add_product.placeholder_dci")}
                           />
                         </FormField>
 
                         {/* Dosage */}
-                        <FormField label="Dosage">
+                        <FormField label={t("add_product.dosage")}>
                           <input
                             id="dosage"
                             type="text"
                             value={formData.dosage}
                             onChange={handleChange}
-                            placeholder="Ex: 500mg"
+                            placeholder={t("add_product.placeholder_dosage")}
                             className={inputCls()}
                           />
                         </FormField>
@@ -528,14 +532,14 @@ export default function AddProductPage() {
 
                       <div className="grid grid-cols-2 gap-4">
                         {/* Category */}
-                        <FormField label="Catégorie" required error={errors.includes("category")}>
+                        <FormField label={t("add_product.category").replace(" *", "")} required error={errors.includes("category")}>
                           <select
                             id="category"
                             value={formData.category}
                             onChange={handleChange}
                             className={inputCls(errors.includes("category"))}
                           >
-                            <option value="">Sélectionner</option>
+                            <option value="">{t("add_product.select_placeholder")}</option>
                             {categories.map((c) => (
                               <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
@@ -548,14 +552,14 @@ export default function AddProductPage() {
                         </FormField>
 
                         {/* Galenic */}
-                        <FormField label="Forme galénique" required error={errors.includes("galenic")}>
+                        <FormField label={t("add_product.galenic").replace(" *", "")} required error={errors.includes("galenic")}>
                           <select
                             id="galenic"
                             value={formData.galenic}
                             onChange={handleChange}
                             className={inputCls(errors.includes("galenic"))}
                           >
-                            <option value="">Sélectionner</option>
+                            <option value="">{t("add_product.select_placeholder")}</option>
                             {galenics.map((g) => (
                               <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
@@ -572,55 +576,55 @@ export default function AddProductPage() {
 
                   {/* ── Unités & Prix ── */}
                   <div>
-                    <SectionTitle icon={Scale} label="Unités & Prix" />
+                    <SectionTitle icon={Scale} label={t("add_product.section_units_price")} />
                     <div className="space-y-4">
                       <div className="grid grid-cols-3 gap-4">
-                        <FormField label="Unité de base" required error={errors.includes("unit_base")}
-                          hint={`Plus petite unité${formData.unit_base ? " — " + unitLabel(formData.unit_base) : " (ex: Comprimé)"}`}>
+                        <FormField label={t("add_product.unit_base").replace(" *", "")} required error={errors.includes("unit_base")}
+                          hint={`${t("add_product.unit_base_desc")}${formData.unit_base ? " — " + unitLabel(formData.unit_base) : ""}`}>
                           <select id="unit_base" value={formData.unit_base} onChange={handleChange}
                             className={inputCls(errors.includes("unit_base"))}>
-                            <option value="">Sélectionner</option>
+                            <option value="">{t("add_product.select_placeholder")}</option>
                             {units.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
                           </select>
                         </FormField>
 
-                        <FormField label="Unité de vente" required error={errors.includes("unit_sale")}
-                          hint={`Vendue au client${formData.unit_sale ? " — " + unitLabel(formData.unit_sale) : " (ex: Boîte)"}`}>
+                        <FormField label={t("add_product.unit_sale").replace(" *", "")} required error={errors.includes("unit_sale")}
+                          hint={`${t("add_product.unit_sale_desc")}${formData.unit_sale ? " — " + unitLabel(formData.unit_sale) : ""}`}>
                           <select id="unit_sale" value={formData.unit_sale} onChange={handleChange}
                             className={inputCls(errors.includes("unit_sale"))}>
-                            <option value="">Sélectionner</option>
+                            <option value="">{t("add_product.select_placeholder")}</option>
                             {units.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
                           </select>
                         </FormField>
 
-                        <FormField label="Unité d'achat" required error={errors.includes("unit_purchase")}
-                          hint={`Achetée au fournisseur${formData.unit_purchase ? " — " + unitLabel(formData.unit_purchase) : " (ex: Carton)"}`}>
+                        <FormField label={t("add_product.unit_purchase").replace(" *", "")} required error={errors.includes("unit_purchase")}
+                          hint={`${t("add_product.unit_purchase_desc")}${formData.unit_purchase ? " — " + unitLabel(formData.unit_purchase) : ""}`}>
                           <select id="unit_purchase" value={formData.unit_purchase} onChange={handleChange}
                             className={inputCls(errors.includes("unit_purchase"))}>
-                            <option value="">Sélectionner</option>
+                            <option value="">{t("add_product.select_placeholder")}</option>
                             {units.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
                           </select>
                         </FormField>
                       </div>
 
                       <div className="grid grid-cols-3 gap-4">
-                        <FormField label="Multiplicateur" hint="Unités de base dans 1 unité de vente">
+                        <FormField label={t("add_product.multiplier")} hint={t("add_product.multiplier_desc")}>
                           <input id="multiplier" type="number" min="1" value={formData.multiplier}
                             onChange={handleChange} placeholder="Ex: 30" className={inputCls()} />
                         </FormField>
-                        <FormField label="Prix d'achat">
+                        <FormField label={t("add_product.purchase_price")}>
                           <input id="purchase_price" type="number" min="0" step="0.01"
                             value={formData.purchase_price} onChange={handleChange}
                             placeholder="0" className={inputCls()} />
                         </FormField>
-                        <FormField label="Prix de vente">
+                        <FormField label={t("add_product.sale_price")}>
                           <input id="sale_price" type="number" min="0" step="0.01"
                             value={formData.sale_price} onChange={handleChange}
                             placeholder="0" className={inputCls()} />
                         </FormField>
                       </div>
 
-                      <FormField label="Devise">
+                      <FormField label={t("add_product.currency")}>
                         <select id="currency" value={formData.currency} onChange={handleChange}
                           className={inputCls()}>
                           <option value="XAF">XAF (Franc CFA)</option>
@@ -633,25 +637,25 @@ export default function AddProductPage() {
 
                   {/* ── Stock initial ── */}
                   <div>
-                    <SectionTitle icon={Package} label="Stock initial" sub="optionnel" />
+                    <SectionTitle icon={Package} label={t("add_product.step_3_title")} sub={t("common.optional")} />
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <FormField label="Quantité initiale">
+                        <FormField label={t("add_product.initial_quantity")}>
                           <input id="quantity" type="number" min="0" value={formData.quantity}
                             onChange={handleChange} placeholder="0" className={inputCls()} />
                         </FormField>
-                        <FormField label="Date de péremption">
+                        <FormField label={t("add_product.expiry_date")}>
                           <input id="expiry_date" type="date" value={formData.expiry_date}
                             onChange={handleChange} className={inputCls()} />
                         </FormField>
                       </div>
-                      <FormField label="Numéro de lot">
+                      <FormField label={t("add_product.lot_number")}>
                         <input id="lot_number" type="text" value={formData.lot_number}
-                          onChange={handleChange} placeholder="Ex: LOT2024-001" className={inputCls()} />
+                          onChange={handleChange} placeholder={t("add_product.placeholder_lot")} className={inputCls()} />
                       </FormField>
-                      <FormField label="Notes / Remarques">
+                      <FormField label={t("add_product.notes")}>
                         <textarea id="notes" rows={3} value={formData.notes}
-                          onChange={handleChange} placeholder="Informations complémentaires…"
+                          onChange={handleChange} placeholder={t("add_product.placeholder_notes")}
                           className={`${inputCls()} resize-none`} />
                       </FormField>
                     </div>
@@ -664,7 +668,7 @@ export default function AddProductPage() {
                       className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium border border-[#E2E8F0] text-[#94A3B8] rounded-xl hover:text-[#1E293B] hover:border-[#1E293B] transition-colors"
                     >
                       <ArrowLeft size={14} />
-                      Annuler
+                      {t("common.cancel")}
                     </Link>
                     <button
                       type="submit"
@@ -672,9 +676,9 @@ export default function AddProductPage() {
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-semibold bg-[#22C55E] hover:bg-[#16A34A] text-white rounded-xl transition-colors disabled:opacity-60"
                     >
                       {isSaving ? (
-                        <><Loader2 size={15} className="animate-spin" />Création en cours…</>
+                        <><Loader2 size={15} className="animate-spin" />{t("add_product.saving_in_progress")}</>
                       ) : (
-                        <><Save size={15} />Créer le médicament</>
+                        <><Save size={15} />{t("add_product.create_product_btn")}</>
                       )}
                     </button>
                   </div>
